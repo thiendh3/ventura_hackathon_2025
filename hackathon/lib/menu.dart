@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'auth_provider.dart';
 import 'search_provider.dart';
@@ -43,7 +44,7 @@ class _MenuState extends State<Menu> {
       imageNameList = data.map((item) => item['name_en'] ?? '').toList();
       List<String> imageUrlList = await fetchImageFromName(imageNameList);
       for (int i = 0; i < data.length; i++) {
-        data[i]['imageUrl'] = imageUrlList[i]; 
+        data[i]['imageUrl'] = imageUrlList[i];
       }
 
       setState(() => recipes = data.map((json) => Recipe.fromJson(json)).toList());
@@ -72,14 +73,14 @@ class _MenuState extends State<Menu> {
         if (response.statusCode == 201) {
           final decodedBody = utf8.decode(response.bodyBytes);
           final data = jsonDecode(decodedBody);
-          
+
           result.add(data['image_url']);
         } else {
           print('Failed to fetch images: ${response.statusCode}');
         }
       } catch (error) {
         print('Error: $error');
-      } 
+      }
     }
 
     return result;
@@ -118,8 +119,30 @@ class _MenuState extends State<Menu> {
             }
           },
         ),
-        title: const Text('Menu'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Logo SVG
+            SvgPicture.string(
+              '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#FFB3C6" stroke="#000000" stroke-width="2"></path><path d="M14.5 9.1c-.3-1.4-1.5-2.6-3-2.6-1.7 0-3.1 1.4-3.1 3.1 0 1.5.9 2.8 2.2 3.1" fill="none" stroke="#000000" stroke-width="2"></path><path d="M9.5 14.9c.3 1.4 1.5 2.6 3 2.6 1.7 0 3.1-1.4 3.1-3.1 0-1.5-.9-2.8-2.2-3.1" fill="none" stroke="#000000" stroke-width="2"></path></svg>''',
+              width: 32,
+              height: 32,
+            ),
+            const SizedBox(width: 8),
+            // Text "Safein"
+            const Text(
+              'Safein',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
         centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -138,7 +161,7 @@ class _MenuState extends State<Menu> {
               onSubmitted: (value) {
                 final searchValues = value.split(',').map((e) => e.trim()).toList();
                 Provider.of<SearchProvider>(context, listen: false).updateSearchValues(value);
-            
+
                 fetchSuggestedRecipes(searchValues);
               },
             ),
