@@ -43,7 +43,7 @@ class _PantryState extends State<Pantry> {
   Future<void> _analyzeIngredients() async {
     if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn ít nhất một ảnh')),
+        const SnackBar(content: Text('Please select at least one image')),
       );
       return;
     }
@@ -61,7 +61,7 @@ class _PantryState extends State<Pantry> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã phân tích thành công!')),
+      const SnackBar(content: Text('Analyzed successfully!')),
     );
   }
 
@@ -93,7 +93,7 @@ class _PantryState extends State<Pantry> {
   // }
 
   Future<void> detectIngredientByImage(XFile image) async {
-    const String apiUrl = 'http://35.226.32.22:3000/api/v1/detect_ingredient/detect';
+    const String apiUrl = 'API_URL_IMAGE_DETECTION';
     var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
     request.files.add(
       await http.MultipartFile.fromPath(
