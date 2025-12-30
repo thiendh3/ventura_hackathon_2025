@@ -1,27 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 
-import 'auth_provider.dart';
-// import 'favorites.dart';
-// import 'menu.dart';
 import 'pantry.dart';
-// import 'shopping_list.dart';
 import 'search_provider.dart';
 import 'allergen_profile_provider.dart';
 import 'allergen_chatbot_screen.dart';
 
 Future<void> main() async {
-  await supabase.Supabase.initialize(
-    url: 'supabase_url',
-    anonKey: 'anon_key',
-  );
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => SearchProvider()),
-        ChangeNotifierProvider(create: (context) => AuthProvider()),
         ChangeNotifierProvider(create: (context) => AllergenProfileProvider()),
       ],
       child: const MyApp(),
@@ -36,7 +26,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      // title: 'ChefMateAI',
       theme: ThemeData(
         primarySwatch: Colors.pink,
       ),
@@ -62,9 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _tabs = [
       Pantry(),
-      // Menu(),
-      // Favorites(),
-      // ShoppingList()
     ];
     _checkProfileAndNavigate();
   }
@@ -105,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Loading...',
+                'Đang tải...',
                 style: TextStyle(
                   color: Colors.grey.shade700,
                   fontSize: 16,
@@ -119,33 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       body: _tabs[_currentIndex],
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: _currentIndex,
-      //   onTap: (index) {
-      //     setState(() {
-      //       _currentIndex = index;
-      //     });
-      //   },
-      //   type: BottomNavigationBarType.fixed,
-      //   items: const [
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.kitchen),
-      //       label: 'Pantry',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.menu_book),
-      //       label: 'Menu',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.favorite),
-      //       label: 'Favorites',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.shopping_cart),
-      //       label: 'Shopping List',
-      //     ),
-      //   ],
-      // ),
     );
   }
 }

@@ -54,7 +54,6 @@ class AllergenProfileProvider with ChangeNotifier {
         _medicalHistory = [];
       }
     } catch (e) {
-      print('Error loading allergen profile: $e');
       _allergens = [];
       _medicalHistory = [];
     } finally {
@@ -73,7 +72,6 @@ class AllergenProfileProvider with ChangeNotifier {
       final profileJson = jsonEncode(profileData);
       await prefs.setString(_profileKey, profileJson);
     } catch (e) {
-      print('Error saving to preferences: $e');
     }
   }
 
@@ -85,7 +83,6 @@ class AllergenProfileProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      print('Error saving allergen profile: $e');
       return false;
     }
   }
@@ -110,7 +107,6 @@ class AllergenProfileProvider with ChangeNotifier {
       _medicalHistory = [];
       notifyListeners();
     } catch (e) {
-      print('Error clearing allergen profile: $e');
     }
   }
 
@@ -131,7 +127,6 @@ class AllergenProfileProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      print('Error checking profile: $e');
       return false;
     }
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'services/translation_service.dart';
+import 'config/allergen_thresholds.dart';
 
 enum AllergenResultType {
   allergic, // Allergic
@@ -11,12 +13,20 @@ class AllergenResultScreen extends StatefulWidget {
   final AllergenResultType resultType;
   final List<String> ingredients;
   final String? imagePath;
+  final List<Map<String, dynamic>>? healthWarnings;
+  final Map<String, dynamic>? riskSummary;
+  final List<String>? safeIngredients;
+  final List<String>? allIngredients;
 
   const AllergenResultScreen({
     super.key,
     required this.resultType,
     required this.ingredients,
     this.imagePath,
+    this.healthWarnings,
+    this.riskSummary,
+    this.safeIngredients,
+    this.allIngredients,
   });
 
   @override
@@ -108,10 +118,162 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Result copied to clipboard! You can share it anywhere.'),
+        content: Text('Đã sao chép kết quả! Bạn có thể chia sẻ ở bất kỳ đâu.'),
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  void _showIngredientDetails(Map<String, dynamic> warning) async {
+    final riskScore = (warning['risk_score'] as num?)?.toDouble() ?? 0.0;
+    final riskType = riskScore >= AllergenThresholds.highRisk ? AllergenResultType.allergic : AllergenResultType.maybe;
+    // Translate ingredient for display
+    final originalIngredient = warning['ingredient']?.toString() ?? 'Không xác định';
+    final ingredient = await TranslationService().translateIngredient(originalIngredient);
+
+    // Fields that need special handling (displayed separately)
+    final specialFields = {'risk_score', 'ingredient', 'warning_type'};
+
+    // Get all other fields dynamically
+    final dynamicFields = <String, dynamic>{};
+    warning.forEach((key, value) {
+      if (!specialFields.contains(key) && value != null) {
+        dynamicFields[key] = value;
+      }
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 600),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _getGradientStartForType(riskType),
+                _getGradientEndForType(riskType),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        ingredient, // Already translated
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: _getTextColorForType(riskType),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: _getTextColorForType(riskType)),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Risk Score
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _getIngredientIcon(riskType),
+                              color: _getIngredientIconColor(riskType),
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Điểm rủi ro: ${(riskScore * 100).toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: _getTextColorForType(riskType),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Dynamic fields - automatically display all fields from warning
+                      ...dynamicFields.entries.map((entry) {
+                        return _buildDynamicField(
+                          entry.key,
+                          entry.value,
+                          riskType,
+                        );
+                      }),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getGradientStartForType(AllergenResultType type) {
+    switch (type) {
+      case AllergenResultType.allergic:
+        return const Color(0xFFFFB3BA);
+      case AllergenResultType.safe:
+        return const Color(0xFFB3FFD9);
+      case AllergenResultType.maybe:
+        return const Color(0xFFFFE5B3);
+    }
+  }
+
+  Color _getGradientEndForType(AllergenResultType type) {
+    switch (type) {
+      case AllergenResultType.allergic:
+        return const Color(0xFFFFD1DC);
+      case AllergenResultType.safe:
+        return const Color(0xFFD1FFE5);
+      case AllergenResultType.maybe:
+        return const Color(0xFFFFF4E6);
+    }
+  }
+
+  Color _getTextColorForType(AllergenResultType type) {
+    switch (type) {
+      case AllergenResultType.allergic:
+        return const Color(0xFF8B1538);
+      case AllergenResultType.safe:
+        return const Color(0xFF1B5E20);
+      case AllergenResultType.maybe:
+        return const Color(0xFFE65100);
+    }
   }
 
   Color _getGradientStart() {
@@ -150,26 +312,245 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
   String _getMainText() {
     switch (widget.resultType) {
       case AllergenResultType.allergic:
-        return 'ALLERGY WARNING';
+        return 'CẢNH BÁO DỊ ỨNG';
       case AllergenResultType.safe:
-        return 'SAFE TO USE';
+        return 'AN TOÀN';
       case AllergenResultType.maybe:
-        return 'CAUTION';
+        return 'THẬN TRỌNG';
     }
   }
 
   String _getSubText() {
+    // Use overall_recommendation from risk_summary if available
+    if (widget.riskSummary != null && widget.riskSummary!['overall_recommendation'] != null) {
+      return widget.riskSummary!['overall_recommendation'] as String;
+    }
+    // Fallback to default text
     switch (widget.resultType) {
       case AllergenResultType.allergic:
-        return 'This product may cause allergic reactions';
+        return 'Sản phẩm này có thể gây phản ứng dị ứng';
       case AllergenResultType.safe:
-        return 'You can safely use this product';
+        return 'Bạn có thể an toàn sử dụng sản phẩm này';
       case AllergenResultType.maybe:
-        return 'Please check carefully before using';
+        return 'Vui lòng kiểm tra kỹ trước khi sử dụng';
     }
   }
 
-  IconData _getIngredientIcon() {
+  /// Build a dynamic field widget for warning details
+  Widget _buildDynamicField(String key, dynamic value, AllergenResultType riskType) {
+    // Translate field name to Vietnamese
+    final fieldLabel = _translateFieldName(key);
+
+    // Handle different value types
+    if (value is List) {
+      if (value.isEmpty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fieldLabel,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getTextColorForType(riskType),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...value.map((item) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.arrow_right,
+                    size: 20,
+                    color: _getTextColorForType(riskType),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.toString(),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: _getTextColorForType(riskType).withOpacity(0.9),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+      );
+    } else if (value is Map) {
+      // Handle nested objects
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fieldLabel,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getTextColorForType(riskType),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...value.entries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4.0, left: 16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_translateFieldName(entry.key)}: ',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: _getTextColorForType(riskType).withOpacity(0.9),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value.toString(),
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: _getTextColorForType(riskType).withOpacity(0.9),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+      );
+    } else {
+      // Handle string, number, boolean
+      final stringValue = value.toString();
+      if (stringValue.isEmpty) return const SizedBox.shrink();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fieldLabel,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _getTextColorForType(riskType),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            stringValue,
+            style: TextStyle(
+              fontSize: 15,
+              color: _getTextColorForType(riskType).withOpacity(0.9),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }
+  }
+
+  /// Translate field name from English to Vietnamese
+  String _translateFieldName(String fieldName) {
+    final translations = {
+      'summary': 'Tóm tắt',
+      'scientific_explanation': 'Giải thích khoa học',
+      'potential_effects': 'Tác động tiềm ẩn',
+      'recommendation': 'Khuyến nghị',
+      'warning_type': 'Loại cảnh báo',
+      'severity': 'Mức độ nghiêm trọng',
+      'prevention': 'Phòng ngừa',
+      'treatment': 'Điều trị',
+      'symptoms': 'Triệu chứng',
+      'cross_reaction': 'Phản ứng chéo',
+      'alternatives': 'Thay thế',
+      'notes': 'Ghi chú',
+      'source': 'Nguồn',
+      'references': 'Tham khảo',
+    };
+
+    return translations[fieldName.toLowerCase()] ??
+           fieldName.split('_').map((word) =>
+             word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+           ).join(' ');
+  }
+
+  // Get risk type for a specific ingredient
+  // Note: ingredient is already translated to Vietnamese from pantry.dart
+  Map<String, dynamic> _getIngredientRiskType(String ingredient) {
+    // Check if ingredient has health warning
+    // Note: ingredient is already translated, but warning['ingredient'] might be in English/Thai
+    if (widget.healthWarnings != null) {
+      for (var warning in widget.healthWarnings!) {
+        final warningIngredient = warning['ingredient']?.toString() ?? '';
+
+        // Use matching function to check if they match (handles Thai, English, Vietnamese)
+        // Since ingredient is already translated, we compare with both original and translated warning
+        if (TranslationService.matchesAllergen(ingredient, warningIngredient) ||
+            warningIngredient.toLowerCase() == ingredient.toLowerCase() ||
+            ingredient.toLowerCase().contains(warningIngredient.toLowerCase()) ||
+            warningIngredient.toLowerCase().contains(ingredient.toLowerCase())) {
+          final riskScore = (warning['risk_score'] as num?)?.toDouble() ?? 0.0;
+          return {
+            'type': riskScore >= AllergenThresholds.highRisk ? AllergenResultType.allergic : AllergenResultType.maybe,
+            'warning': warning,
+            'hasWarning': true,
+          };
+        }
+      }
+    }
+    // Check if ingredient is in safe list (both are already translated)
+    if (widget.safeIngredients != null &&
+        widget.safeIngredients!.any((safe) => safe.toLowerCase() == ingredient.toLowerCase())) {
+      return {
+        'type': AllergenResultType.safe,
+        'warning': null,
+        'hasWarning': false,
+      };
+    }
+    // Unknown/other ingredient
+    return {
+      'type': AllergenResultType.maybe,
+      'warning': null,
+      'hasWarning': false,
+    };
+  }
+
+  IconData _getIngredientIcon(AllergenResultType riskType) {
+    switch (riskType) {
+      case AllergenResultType.allergic:
+        return Icons.warning_rounded;
+      case AllergenResultType.safe:
+        return Icons.check_circle_rounded;
+      case AllergenResultType.maybe:
+        return Icons.help_outline_rounded;
+    }
+  }
+
+  Color _getIngredientIconColor(AllergenResultType riskType) {
+    switch (riskType) {
+      case AllergenResultType.allergic:
+        return const Color(0xFFD32F2F); // Dark red for contrast
+      case AllergenResultType.safe:
+        return const Color(0xFF2E7D32); // Dark green for contrast
+      case AllergenResultType.maybe:
+        return const Color(0xFFF57C00); // Dark orange for contrast
+    }
+  }
+
+  // Legacy methods for backward compatibility
+  IconData _getIngredientIconLegacy() {
     switch (widget.resultType) {
       case AllergenResultType.allergic:
         return Icons.close_rounded;
@@ -180,7 +561,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     }
   }
 
-  Color _getIngredientIconColor() {
+  Color _getIngredientIconColorLegacy() {
     switch (widget.resultType) {
       case AllergenResultType.allergic:
         return const Color(0xFFD32F2F); // Dark red for contrast
@@ -251,6 +632,224 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
         },
       );
     }
+  }
+
+  Widget _buildIngredientsList() {
+    // Organize ingredients into sections
+    final List<String> warningIngredients = [];
+    final List<String> safeIngredientList = [];
+    final List<String> otherIngredients = [];
+
+    // Use allIngredients if available, otherwise use ingredients
+    final allIngredientList = widget.allIngredients ?? widget.ingredients;
+
+    for (var ingredient in allIngredientList) {
+      final riskInfo = _getIngredientRiskType(ingredient);
+      if (riskInfo['hasWarning'] == true) {
+        warningIngredients.add(ingredient);
+      } else if (riskInfo['type'] == AllergenResultType.safe) {
+        safeIngredientList.add(ingredient);
+      } else {
+        otherIngredients.add(ingredient);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _getGradientStart().withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Thành phần đã phát hiện:',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _getTextColor(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Warning Ingredients Section
+          if (warningIngredients.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.warning_rounded, color: Color(0xFFD32F2F), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Cảnh báo dị ứng',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _getTextColor(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...warningIngredients.map((ingredient) {
+              final riskInfo = _getIngredientRiskType(ingredient);
+              final warning = riskInfo['warning'] as Map<String, dynamic>?;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getIngredientIcon(riskInfo['type'] as AllergenResultType),
+                      color: _getIngredientIconColor(riskInfo['type'] as AllergenResultType),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        ingredient, // Already translated in pantry.dart
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _getTextColor().withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (warning != null)
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, size: 20),
+                        color: _getTextColor(),
+                        onPressed: () => _showIngredientDetails(warning),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+          // Safe Ingredients Section
+          if (safeIngredientList.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Thành phần an toàn',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _getTextColor(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...safeIngredientList.map((ingredient) {
+              final riskInfo = _getIngredientRiskType(ingredient);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getIngredientIcon(riskInfo['type'] as AllergenResultType),
+                      color: _getIngredientIconColor(riskInfo['type'] as AllergenResultType),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        ingredient, // Already translated in pantry.dart
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _getTextColor().withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+          // Other Ingredients Section
+          if (otherIngredients.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.help_outline_rounded, color: Color(0xFFF57C00), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Thành phần khác',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _getTextColor(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...otherIngredients.map((ingredient) {
+              final riskInfo = _getIngredientRiskType(ingredient);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getIngredientIcon(riskInfo['type'] as AllergenResultType),
+                      color: _getIngredientIconColor(riskInfo['type'] as AllergenResultType),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        ingredient, // Already translated in pantry.dart
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _getTextColor().withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          // Fallback: if no sections, show all ingredients with legacy icons
+          if (warningIngredients.isEmpty && safeIngredientList.isEmpty && otherIngredients.isEmpty) ...[
+            ...widget.ingredients.map((ingredient) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getIngredientIconLegacy(),
+                      color: _getIngredientIconColorLegacy(),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        ingredient, // Already translated in pantry.dart
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _getTextColor().withOpacity(0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -331,56 +930,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
 
                         // Ingredients List
                         if (widget.ingredients.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: _getGradientStart().withOpacity(0.3),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Detected Ingredients:',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: _getTextColor(),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                ...widget.ingredients.map((ingredient) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          _getIngredientIcon(),
-                                          color: _getIngredientIconColor(),
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            ingredient,
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              color: _getTextColor().withOpacity(0.9),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
+                          _buildIngredientsList(),
                         ],
 
                         const SizedBox(height: 48),
@@ -400,7 +950,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                               elevation: 4,
                             ),
                             child: const Text(
-                              'Scan Again',
+                              'Quét lại',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,

@@ -46,9 +46,9 @@ class LoginPage extends StatelessWidget {
                 const SizedBox(height: 30),
                 ElevatedButton(
                   onPressed: () => authProvider.loginUser(
-                    context, 
-                    emailController.text, 
-                    passwordController.text 
+                    context,
+                    emailController.text,
+                    passwordController.text
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.pink, // Button color

@@ -53,15 +53,15 @@ class _AllergenChatbotScreenState extends State<AllergenChatbotScreen>
   void _initializeChat() {
     final systemPrompt = {
       'role': 'system',
-      'content': '''You are a health profile chatbot. Your task is to collect two types of information from users:
-1. Food allergies (e.g., peanuts, milk, eggs, shellfish)
-2. Medical history/conditions (e.g., diabetes, hypertension, heart disease)
+      'content': '''Bạn là một chatbot thu thập hồ sơ sức khỏe. Nhiệm vụ của bạn là thu thập hai loại thông tin từ người dùng:
+1. Dị ứng thực phẩm (ví dụ: đậu phộng, sữa, trứng, hải sản)
+2. Tiền sử bệnh/tình trạng sức khỏe (ví dụ: tiểu đường, cao huyết áp, bệnh tim)
 
-Ask about food allergies FIRST. Once you have collected allergy information, then ask about medical history.
-Ask one question at a time, wait for the answer before asking the next.
-If the user is unsure, ask additional guiding questions to help them identify their information.
-When you have collected enough information about BOTH allergies and medical history, summarize both lists and confirm with the user by asking "Would you like to save this information?" or similar.
-Respond only in English.''',
+Hỏi về dị ứng thực phẩm TRƯỚC. Sau khi thu thập thông tin dị ứng, mới hỏi về tiền sử bệnh.
+Hỏi từng câu hỏi một, đợi câu trả lời trước khi hỏi câu tiếp theo.
+Nếu người dùng không chắc chắn, hãy hỏi thêm các câu hỏi hướng dẫn để giúp họ xác định thông tin.
+Khi bạn đã thu thập đủ thông tin về CẢ dị ứng và tiền sử bệnh, hãy tóm tắt cả hai danh sách và xác nhận với người dùng bằng cách hỏi "Bạn có muốn lưu thông tin này không?" hoặc tương tự.
+Trả lời CHỈ bằng tiếng Việt.''',
     };
 
     _messages.add(systemPrompt);
@@ -83,7 +83,7 @@ Respond only in English.''',
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Connection error: ${e.toString()}'),
+            content: Text('Lỗi kết nối: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -123,7 +123,7 @@ Respond only in English.''',
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Lỗi: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -327,7 +327,7 @@ Do not include any other text, just the list or "none".''',
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
-                        'Enter Health Profile',
+                        'Nhập hồ sơ sức khỏe',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -340,7 +340,7 @@ Do not include any other text, just the list or "none".''',
                 const SizedBox(height: 20),
                 // Allergens field
                 const Text(
-                  'Food Allergies',
+                  'Dị ứng thực phẩm',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -363,7 +363,7 @@ Do not include any other text, just the list or "none".''',
                   child: TextField(
                     controller: allergenController,
                     decoration: InputDecoration(
-                      hintText: 'Example: peanuts, milk, eggs (separated by commas)',
+                      hintText: 'Ví dụ: đậu phộng, sữa, trứng (phân cách bằng dấu phẩy)',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -378,7 +378,7 @@ Do not include any other text, just the list or "none".''',
                 const SizedBox(height: 16),
                 // Medical History field
                 const Text(
-                  'Medical History',
+                  'Tiền sử bệnh',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -401,7 +401,7 @@ Do not include any other text, just the list or "none".''',
                   child: TextField(
                     controller: medicalHistoryController,
                     decoration: InputDecoration(
-                      hintText: 'Example: diabetes, hypertension (separated by commas)',
+                      hintText: 'Ví dụ: tiểu đường, cao huyết áp (phân cách bằng dấu phẩy)',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -422,7 +422,7 @@ Do not include any other text, just the list or "none".''',
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Health profile not saved. You can set it up later from your profile.'),
+                            content: Text('Hồ sơ sức khỏe chưa được lưu. Bạn có thể thiết lập sau từ hồ sơ của mình.'),
                             backgroundColor: Colors.orange,
                             duration: Duration(seconds: 3),
                           ),
@@ -432,7 +432,7 @@ Do not include any other text, just the list or "none".''',
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       ),
                       child: const Text(
-                        'Cancel',
+                        'Hủy',
                         style: TextStyle(
                           color: Color(0xFF5A6C7D),
                           fontSize: 16,
@@ -460,7 +460,7 @@ Do not include any other text, just the list or "none".''',
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Please enter at least one item in allergies or medical history'),
+                              content: Text('Vui lòng nhập ít nhất một mục trong dị ứng hoặc tiền sử bệnh'),
                               backgroundColor: Colors.orange,
                             ),
                           );
@@ -476,7 +476,7 @@ Do not include any other text, just the list or "none".''',
                         elevation: 4,
                       ),
                       child: const Text(
-                        'Save',
+                        'Lưu',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -502,7 +502,7 @@ Do not include any other text, just the list or "none".''',
         setState(() => _isComplete = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Health profile saved successfully!'),
+            content: Text('Đã lưu hồ sơ sức khỏe thành công!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -523,7 +523,7 @@ Do not include any other text, just the list or "none".''',
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Error saving information'),
+            content: Text('Lỗi khi lưu thông tin'),
             backgroundColor: Colors.red,
           ),
         );
@@ -622,7 +622,7 @@ Do not include any other text, just the list or "none".''',
             ),
             const SizedBox(width: 8),
             const Text(
-              'Allergen Profile Setup',
+              'Thiết lập hồ sơ dị ứng',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,

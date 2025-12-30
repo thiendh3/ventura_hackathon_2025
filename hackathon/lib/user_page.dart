@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'auth_provider.dart';
 import 'allergen_profile_provider.dart';
 import 'allergen_chatbot_screen.dart';
+import 'services/translation_service.dart';
 
 class UserPage extends StatefulWidget {
   const UserPage({super.key});
@@ -38,7 +38,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
     final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: true);
 
     return Scaffold(
@@ -54,7 +53,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
             ),
             const SizedBox(width: 8),
             const Text(
-              'Profile',
+              'Hồ sơ',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -166,7 +165,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
-                              authProvider.userEmail ?? 'User',
+                              'Người dùng',
                               style: const TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
@@ -198,7 +197,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
-                                      'Safe & Protected',
+                                      'An toàn & Được bảo vệ',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,
@@ -264,7 +263,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                               const SizedBox(width: 12),
                               Flexible(
                                 child: Text(
-                                  'Allergen Information',
+                                  'Thông tin dị ứng',
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -294,7 +293,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No allergen information',
+                                    'Chưa có thông tin dị ứng',
                                     style: TextStyle(
                                       fontSize: 18,
                                       color: Colors.grey.shade600,
@@ -303,7 +302,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Set up your profile to stay safe! 🛡️',
+                                    'Thiết lập hồ sơ để được an toàn! 🛡️',
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade500,
@@ -320,56 +319,62 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   runSpacing: 12,
                                   alignment: WrapAlignment.center,
                                   children: allergenProvider.allergens.map((allergen) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 14,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFB3FFD9),
-                                            Color(0xFFD1FFE5),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: const Color(0xFF4ECDC4).withOpacity(0.3),
-                                          width: 2,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF4ECDC4).withOpacity(0.2),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
+                                    return FutureBuilder<String>(
+                                      future: TranslationService().translateIngredient(allergen),
+                                      builder: (context, snapshot) {
+                                        final displayText = snapshot.data ?? allergen;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 14,
                                           ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.warning_amber_rounded,
-                                            color: Color(0xFF4ECDC4),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            allergen,
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              color: Color(0xFF2C3E50),
-                                              fontWeight: FontWeight.w600,
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFFB3FFD9),
+                                                Color(0xFFD1FFE5),
+                                              ],
                                             ),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: const Color(0xFF4ECDC4).withOpacity(0.3),
+                                              width: 2,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF4ECDC4).withOpacity(0.2),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.warning_amber_rounded,
+                                                color: Color(0xFF4ECDC4),
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                displayText,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  color: Color(0xFF2C3E50),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     );
                                   }).toList(),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '${allergenProvider.allergens.length} ${allergenProvider.allergens.length == 1 ? 'allergen' : 'allergens'} tracked ✨',
+                                  'Đang theo dõi ${allergenProvider.allergens.length} ${allergenProvider.allergens.length == 1 ? 'dị ứng' : 'dị ứng'} ✨',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey.shade600,
@@ -404,7 +409,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                               const SizedBox(width: 12),
                               Flexible(
                                 child: Text(
-                                  'Medical History',
+                                  'Tiền sử bệnh',
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -434,7 +439,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No medical history',
+                                    'Chưa có tiền sử bệnh',
                                     style: TextStyle(
                                       fontSize: 18,
                                       color: Colors.grey.shade600,
@@ -443,7 +448,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Keep your health profile updated! 💚',
+                                    'Cập nhật hồ sơ sức khỏe của bạn! 💚',
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey.shade500,
@@ -460,56 +465,62 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   runSpacing: 12,
                                   alignment: WrapAlignment.center,
                                   children: allergenProvider.medicalHistory.map((condition) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 14,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFB3FFD9),
-                                            Color(0xFFD1FFE5),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: const Color(0xFF4ECDC4).withOpacity(0.3),
-                                          width: 2,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF4ECDC4).withOpacity(0.2),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
+                                    return FutureBuilder<String>(
+                                      future: TranslationService().translateIngredient(condition),
+                                      builder: (context, snapshot) {
+                                        final displayText = snapshot.data ?? condition;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 14,
                                           ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.medical_services_rounded,
-                                            color: Color(0xFF4ECDC4),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            condition,
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              color: Color(0xFF2C3E50),
-                                              fontWeight: FontWeight.w600,
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFFB3FFD9),
+                                                Color(0xFFD1FFE5),
+                                              ],
                                             ),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: const Color(0xFF4ECDC4).withOpacity(0.3),
+                                              width: 2,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: const Color(0xFF4ECDC4).withOpacity(0.2),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.medical_services_rounded,
+                                                color: Color(0xFF4ECDC4),
+                                                size: 20,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                displayText,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  color: Color(0xFF2C3E50),
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     );
                                   }).toList(),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '${allergenProvider.medicalHistory.length} ${allergenProvider.medicalHistory.length == 1 ? 'condition' : 'conditions'} tracked ✨',
+                                  'Đang theo dõi ${allergenProvider.medicalHistory.length} ${allergenProvider.medicalHistory.length == 1 ? 'tình trạng' : 'tình trạng'} ✨',
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey.shade600,
@@ -548,7 +559,7 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                                   ),
                                   SizedBox(width: 12),
                                   Text(
-                                    'Edit Health Profile',
+                                    'Chỉnh sửa hồ sơ sức khỏe',
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,

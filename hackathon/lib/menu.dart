@@ -49,10 +49,8 @@ class _MenuState extends State<Menu> {
 
       setState(() => recipes = data.map((json) => Recipe.fromJson(json)).toList());
     } else {
-      print('Failed to fetch recipes: ${response.statusCode}');
     }
     } catch (error) {
-      print('Error: $error');
     } finally {
       setState(() => isLoading = false);
     }
@@ -76,10 +74,8 @@ class _MenuState extends State<Menu> {
 
           result.add(data['image_url']);
         } else {
-          print('Failed to fetch images: ${response.statusCode}');
         }
       } catch (error) {
-        print('Error: $error');
       }
     }
 

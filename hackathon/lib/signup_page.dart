@@ -13,7 +13,7 @@ class SignupPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    
+
     return Scaffold(
       appBar: AppBar(title: const Text('Sign Up')),
       body: Stack(

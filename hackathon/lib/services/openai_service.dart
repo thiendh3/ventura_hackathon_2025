@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class OpenAIService {
-  // TODO: Replace with your actual OpenAI API key
-  // For production, consider using environment variables or secure storage
   static const String _apiKey = 'open-AI-key';
   static const String _apiUrl = 'https://api.openai.com/v1/chat/completions';
 
@@ -31,7 +29,6 @@ class OpenAIService {
         throw Exception('OpenAI API error: ${errorData['error']?['message'] ?? 'Unknown error'}');
       }
     } catch (e) {
-      print('Error calling OpenAI API: $e');
       rethrow;
     }
   }

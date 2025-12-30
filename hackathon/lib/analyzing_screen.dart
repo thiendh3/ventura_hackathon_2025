@@ -20,10 +20,10 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   late Animation<double> _waveAnimation;
 
   final List<String> _analyzingTexts = [
-    'Scanning ingredients...',
-    'Analyzing with AI...',
-    'Checking for allergens...',
-    'Almost done...',
+    'Đang quét thành phần...',
+    'Đang phân tích bằng AI...',
+    'Đang kiểm tra dị ứng...',
+    'Sắp xong...',
   ];
   int _currentTextIndex = 0;
 
@@ -237,7 +237,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'AI is analyzing ingredients for potential allergens',
+                          'AI đang phân tích thành phần để tìm dị ứng',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade600,

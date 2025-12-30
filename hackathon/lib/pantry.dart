@@ -4,15 +4,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-// import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 
-// import 'login_page.dart';
 import 'search_provider.dart';
 import 'allergen_result_screen.dart';
 import 'analyzing_screen.dart';
 import 'user_page.dart';
+import 'services/device_id_service.dart';
+import 'allergen_profile_provider.dart';
+import 'services/translation_service.dart';
+import 'config/allergen_thresholds.dart';
 
 class Pantry extends StatefulWidget {
   const Pantry({super.key});
@@ -45,7 +47,7 @@ class _PantryState extends State<Pantry> {
   Future<void> _analyzeIngredients() async {
     if (_selectedImages.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one image')),
+        const SnackBar(content: Text('Vui lòng chọn ít nhất một hình ảnh')),
       );
       return;
     }
@@ -78,87 +80,43 @@ class _PantryState extends State<Pantry> {
     }
   }
 
-  // void _startListening() async {
-  //   bool available = await _speech.initialize();
-  //   if (available) {
-  //     setState(() => _isListening = true);
-  //     _speech.listen(onResult: (result) {
-  //       setState(() {
-  //         _spokenText = result.recognizedWords;
-  //       });
-  //     });
-  //   } else {
-  //     setState(() => _isListening = false);
-  //   }
-  // }
+  AllergenResultType _calculateResultType(List<dynamic>? healthWarnings, Map<String, dynamic>? riskSummary) {
+    // Priority 1: Check health_warnings first (most reliable)
+    if (healthWarnings != null && healthWarnings.isNotEmpty) {
+      double maxWarningScore = 0.0;
+      for (var warning in healthWarnings) {
+        final riskScore = (warning['risk_score'] as num?)?.toDouble() ?? 0.0;
+        if (riskScore > maxWarningScore) {
+          maxWarningScore = riskScore;
+        }
+      }
 
-  // void _stopListening() {
-  //   setState(() => _isListening = false);
-  //   _speech.stop();
-  //   if (_spokenText.isNotEmpty) {
-  //     List<String> ingredients = _spokenText.split(',').map((s) => s.trim()).toList();
-  //     Provider.of<SearchProvider>(context, listen: false).addMultipleSearchValues(ingredients);
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('Ingredients added: $_spokenText')),
-  //     );
-  //     _spokenText = '';
-  //   }
-  // }
+      if (maxWarningScore >= AllergenThresholds.highRisk) {
+        return AllergenResultType.allergic;
+      } else if (maxWarningScore >= AllergenThresholds.mediumRisk) {
+        return AllergenResultType.maybe;
+      } else if (maxWarningScore > AllergenThresholds.lowRisk) {
+        return AllergenResultType.maybe;
+      }
+    }
 
-  // Debug dialog - có thể uncomment để test
-  // void _showOutputDialog(Map<String, dynamic> jsonResponse, int statusCode) {
-  //   if (!mounted) return;
+    // Priority 2: Use risk_summary if available
+    if (riskSummary != null && riskSummary['max_risk_score'] != null) {
+      final maxRiskScore = (riskSummary['max_risk_score'] as num).toDouble();
 
-  //   showDialog(
-  //     context: context,
-  //     builder: (BuildContext context) {
-  //       return AlertDialog(
-  //         title: Row(
-  //           children: [
-  //             Icon(
-  //               statusCode == 200 ? Icons.check_circle : Icons.error,
-  //               color: statusCode == 200 ? Colors.green : Colors.red,
-  //             ),
-  //             const SizedBox(width: 8),
-  //             Text('API Response (${statusCode})'),
-  //           ],
-  //         ),
-  //         content: SingleChildScrollView(
-  //           child: Container(
-  //             width: double.maxFinite,
-  //             padding: const EdgeInsets.all(12),
-  //             decoration: BoxDecoration(
-  //               color: Colors.grey.shade100,
-  //               borderRadius: BorderRadius.circular(8),
-  //               border: Border.all(color: Colors.grey.shade300),
-  //             ),
-  //             child: SelectableText(
-  //               const JsonEncoder.withIndent('  ').convert(jsonResponse),
-  //               style: const TextStyle(
-  //                 fontFamily: 'monospace',
-  //                 fontSize: 12,
-  //               ),
-  //             ),
-  //           ),
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.of(context).pop(),
-  //             child: const Text('Đóng'),
-  //           ),
-  //           if (jsonResponse['ingredients'] != null)
-  //             TextButton(
-  //               onPressed: () {
-  //                 Navigator.of(context).pop();
-  //                 // Copy ingredients to clipboard hoặc hiển thị thêm
-  //               },
-  //               child: const Text('OK'),
-  //             ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
+      if (maxRiskScore >= AllergenThresholds.highRisk) {
+        return AllergenResultType.allergic;
+      } else if (maxRiskScore >= AllergenThresholds.mediumRisk) {
+        return AllergenResultType.maybe;
+      } else {
+        return AllergenResultType.safe;
+      }
+    }
+
+    // Fallback to old behavior if no health data
+    return _getResultType();
+  }
+
 
   Future<void> detectIngredientByImage(XFile image) async {
     const String apiUrl = 'https://asia-southeast1-hackathon-2026-482104.cloudfunctions.net/smart_ocr_rag';
@@ -170,6 +128,26 @@ class _PantryState extends State<Pantry> {
         filename: image.name,
       ),
     );
+
+    // Add device ID to request
+    try {
+      final deviceId = await DeviceIdService().getDeviceId();
+      request.fields['device_id'] = deviceId;
+    } catch (e) {
+      // Device ID error, continue with request
+    }
+
+    // Add health profile to request
+    try {
+      final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
+      final healthProfile = {
+        'allergy': allergenProvider.allergens,
+        'medical_history': allergenProvider.medicalHistory,
+      };
+      final healthProfileJson = jsonEncode(healthProfile);
+      request.fields['health_profile'] = healthProfileJson;
+    } catch (e) {
+    }
 
     try {
       var response = await request.send();
@@ -184,12 +162,48 @@ class _PantryState extends State<Pantry> {
         if (jsonResponse['success'] == true && jsonResponse['ingredients'] != null) {
           var ingredients = jsonResponse['ingredients'] as List;
           List<String> ingredientsList = ingredients.map((e) => e.toString()).toList();
+          // Translate ingredients to Vietnamese using AI
+          ingredientsList = await TranslationService().translateIngredients(ingredientsList);
+
+          // Parse enhanced response data
+          final healthWarnings = jsonResponse['health_warnings'] as List<dynamic>?;
+          final riskSummary = jsonResponse['risk_summary'] as Map<String, dynamic>?;
+          final safeIngredients = (jsonResponse['safe_ingredients'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ?? [];
+          // Translate safe ingredients to Vietnamese using AI
+          final safeIngredientsTranslated = await TranslationService().translateIngredients(safeIngredients);
+
+          // Check if ingredients contain allergens even if API says safe
+          // This handles cases where API might miss allergens in foreign language text
+          final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
+          final userAllergens = allergenProvider.allergens;
+
+          // Check each ingredient against user allergens (after translation)
+          bool hasHiddenAllergen = false;
+          for (var ingredient in ingredientsList) {
+            for (var allergen in userAllergens) {
+              // Translate allergen to Vietnamese for matching
+              final translatedAllergen = await TranslationService().translateIngredient(allergen);
+              if (TranslationService.matchesAllergen(ingredient, translatedAllergen) ||
+                  TranslationService.matchesAllergen(ingredient, allergen)) {
+                hasHiddenAllergen = true;
+                break;
+              }
+            }
+            if (hasHiddenAllergen) break;
+          }
+
+          // If we found a hidden allergen but API didn't, adjust risk
+          if (hasHiddenAllergen && (healthWarnings == null || healthWarnings.isEmpty)) {
+            // Don't override API's decision
+          }
 
           // Lưu vào SearchProvider
           setState(() => Provider.of<SearchProvider>(context, listen: false).addSearchValues(ingredientsList));
 
-          // Tính result type dựa trên scan count
-          AllergenResultType resultType = _getResultType();
+          // Tính result type dựa trên health_warnings và risk_summary
+          AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
 
           // Tăng scan count cho lần scan tiếp theo
           setState(() {
@@ -205,35 +219,36 @@ class _PantryState extends State<Pantry> {
                   resultType: resultType,
                   ingredients: ingredientsList,
                   imagePath: image.path,
+                  healthWarnings: healthWarnings?.cast<Map<String, dynamic>>(),
+                  riskSummary: riskSummary,
+                  safeIngredients: safeIngredientsTranslated,
+                  allIngredients: ingredientsList,
                 ),
               ),
             );
           }
         } else {
-          print('API returned success=false or missing ingredients');
           if (mounted) {
             Navigator.of(context).pop(); // Close analyzing screen
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(jsonResponse['error'] ?? 'No ingredients found in image')),
+              SnackBar(content: Text(jsonResponse['error'] ?? 'Không tìm thấy thành phần trong hình ảnh')),
             );
           }
         }
       } else {
-        var errorMsg = jsonResponse['error'] ?? 'Failed with status code: ${response.statusCode}';
-        print('Failed with status code: ${response.statusCode}, error: $errorMsg');
+        var errorMsg = jsonResponse['error'] ?? 'Lỗi với mã trạng thái: ${response.statusCode}';
         if (mounted) {
           Navigator.of(context).pop(); // Close analyzing screen
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $errorMsg')),
+            SnackBar(content: Text('Lỗi: $errorMsg')),
           );
         }
       }
     } catch (e) {
-      print('Error: $e');
       if (mounted) {
         Navigator.of(context).pop(); // Close analyzing screen
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error processing image: $e')),
+          SnackBar(content: Text('Lỗi xử lý hình ảnh: $e')),
         );
       }
     }
@@ -345,7 +360,7 @@ class _PantryState extends State<Pantry> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'AI Allergen Scanner',
+                                'Máy quét dị ứng AI',
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -354,7 +369,7 @@ class _PantryState extends State<Pantry> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Smart ingredient analysis',
+                                'Phân tích thành phần thông minh',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Color(0xFF5A6C7D),
@@ -367,7 +382,7 @@ class _PantryState extends State<Pantry> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      'Upload a photo of the product\'s ingredients label to check for allergens.',
+                      'Tải lên hình ảnh nhãn thành phần của sản phẩm để kiểm tra dị ứng.',
                       style: TextStyle(
                         fontSize: 15,
                         color: Colors.grey.shade700,
@@ -441,7 +456,7 @@ class _PantryState extends State<Pantry> {
                                             children: [
                                               ListTile(
                                                 leading: const Icon(Icons.photo_library),
-                                                title: const Text('Upload from Gallery'),
+                                                title: const Text('Tải lên từ thư viện'),
                                                 onTap: () {
                                                   Navigator.pop(context);
                                                   _pickImage(context, ImageSource.gallery);
@@ -449,7 +464,7 @@ class _PantryState extends State<Pantry> {
                                               ),
                                               ListTile(
                                                 leading: const Icon(Icons.camera_alt),
-                                                title: const Text('Take a Picture'),
+                                                title: const Text('Chụp ảnh'),
                                                 onTap: () {
                                                   Navigator.pop(context);
                                                   _pickImage(context, ImageSource.camera);
@@ -488,7 +503,7 @@ class _PantryState extends State<Pantry> {
                                         ),
                                         const SizedBox(height: 16),
                                         Text(
-                                          'Tap to add photo',
+                                          'Nhấn để thêm ảnh',
                                           style: TextStyle(
                                             color: Colors.grey.shade700,
                                             fontSize: 15,
@@ -561,7 +576,7 @@ class _PantryState extends State<Pantry> {
                                                 children: [
                                                   ListTile(
                                                     leading: const Icon(Icons.photo_library),
-                                                    title: const Text('Upload from Gallery'),
+                                                    title: const Text('Tải lên từ thư viện'),
                                                     onTap: () {
                                                       Navigator.pop(context);
                                                       _pickImage(context, ImageSource.gallery);
@@ -569,7 +584,7 @@ class _PantryState extends State<Pantry> {
                                                   ),
                                                   ListTile(
                                                     leading: const Icon(Icons.camera_alt),
-                                                    title: const Text('Take a Picture'),
+                                                    title: const Text('Chụp ảnh'),
                                                     onTap: () {
                                                       Navigator.pop(context);
                                                       _pickImage(context, ImageSource.camera);
@@ -602,7 +617,7 @@ class _PantryState extends State<Pantry> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Add more',
+                                              'Thêm nữa',
                                               style: TextStyle(
                                                 color: Colors.grey.shade600,
                                                 fontSize: 12,
@@ -645,7 +660,7 @@ class _PantryState extends State<Pantry> {
                       ),
                       const SizedBox(width: 12),
                       const Text(
-                        'Analyze with AI',
+                        'Phân tích bằng AI',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
