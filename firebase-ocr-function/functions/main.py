@@ -137,6 +137,120 @@ def analyze_with_openai_strict(ocr_word_list: list) -> list:
 
 
 # ---------------------------------------------------------
+# BƯỚC 2.5: PHÂN TÍCH RỦI RO SỨC KHỎE (Health Risk Analysis)
+# ---------------------------------------------------------
+def analyze_health_risks(ingredients: list, health_profile: dict) -> dict:
+    """
+    Sử dụng OpenAI để phân tích rủi ro sức khỏe dựa trên ingredients và health profile
+    
+    Args:
+        ingredients: Danh sách nguyên liệu đã trích xuất
+        health_profile: Hồ sơ sức khỏe của người dùng
+            {
+                "medical_history": ["bệnh 1", "bệnh 2"],
+                "allergy": ["dị ứng 1", "dị ứng 2"]
+            }
+    
+    Returns:
+        Dictionary chứa warnings, safe_ingredients, overall_recommendation
+    """
+    client = get_openai_client()
+    
+    # Format health profile for prompt
+    medical_history = health_profile.get('medical_history', [])
+    allergies = health_profile.get('allergy', [])
+    
+    medical_history_str = ", ".join(medical_history) if medical_history else "Không có"
+    allergies_str = ", ".join(allergies) if allergies else "Không có"
+    ingredients_str = ", ".join(ingredients)
+    
+    prompt = f"""
+Bạn là một BÁC SĨ DINH DƯỠNG và CHUYÊN GIA DỊ ỨNG THỰC PHẨM với kiến thức y khoa sâu rộng.
+
+## NHIỆM VỤ
+Phân tích danh sách THÀNH PHẦN thực phẩm và xác định thành phần nào có thể GÂY HẠI cho người dùng dựa trên HỒ SƠ SỨC KHỎE của họ.
+
+## HỒ SƠ SỨC KHỎE
+- Tiền sử bệnh lý: {medical_history_str}
+- Dị ứng đã biết: {allergies_str}
+
+## DANH SÁCH THÀNH PHẦN CẦN PHÂN TÍCH
+{ingredients_str}
+
+## YÊU CẦU PHÂN TÍCH (QUAN TRỌNG)
+
+1. **Nhận diện trực tiếp**: Thành phần CÓ TRONG danh sách dị ứng
+   - Ví dụ: "hải sản" bao gồm: tôm, cua, mực, sò, ốc, cá...
+   - Ví dụ: "các loại đậu" bao gồm: đậu phộng, đậu nành, đậu xanh, đậu đỏ...
+   - Ví dụ: "gluten" bao gồm: bột mì, lúa mạch, yến mạch...
+
+2. **Nhận diện gián tiếp (Cross-reactivity)**: Thành phần có thể GÂY PHẢN ỨNG CHÉO
+   - Ví dụ: Dị ứng latex → có thể phản ứng với chuối, bơ, kiwi
+   - Ví dụ: Dị ứng đậu phộng → có thể phản ứng với đậu tương, đậu xanh
+   - Ví dụ: Dị ứng sữa bò → có thể phản ứng với sữa dê, sữa cừu
+
+3. **Ảnh hưởng tiền sử bệnh**: Thành phần KHÔNG TỐT cho tình trạng bệnh lý
+   - Gan nhiễm mỡ → hạn chế đường, chất béo bão hòa, rượu, fructose
+   - Tiểu đường → hạn chế đường, tinh bột tinh chế, carbohydrate đơn giản
+   - Cao huyết áp → hạn chế muối (sodium), MSG, thực phẩm chế biến sẵn
+   - Viêm họng → hạn chế đồ cay, đồ lạnh, đồ chiên rán, thực phẩm có tính axit
+   - Gout → hạn chế purine (thịt đỏ, nội tạng, hải sản)
+   - Bệnh thận → hạn chế protein, potassium, phosphorus
+
+## OUTPUT FORMAT (JSON)
+{{
+  "warnings": [
+    {{
+      "ingredient": "Tên thành phần gốc từ danh sách",
+      "risk_score": 0.95,
+      "warning_type": "allergy/cross_reactivity/medical_condition",
+      "summary": "Tóm tắt ngắn gọn lý do cảnh báo",
+      "scientific_explanation": "Giải thích CHI TIẾT về mặt y khoa/sinh học: tên khoa học của thành phần, cơ chế sinh học tại sao gây hại, các protein/hợp chất cụ thể liên quan, quá trình phản ứng trong cơ thể",
+      "potential_effects": ["Tác động 1", "Tác động 2", "Tác động 3"],
+      "recommendation": "Lời khuyên cụ thể và thực tế cho bệnh nhân"
+    }}
+  ],
+  "safe_ingredients": ["Danh sách các thành phần AN TOÀN không có vấn đề"],
+  "overall_recommendation": "Đánh giá tổng thể: sản phẩm này có AN TOÀN hay KHÔNG AN TOÀN cho bệnh nhân, kèm lời khuyên cuối cùng"
+}}
+
+## QUY TẮC BẮT BUỘC
+- Chỉ trả về JSON thuần túy, không có text giải thích bên ngoài
+- TOÀN BỘ nội dung PHẢI viết bằng TIẾNG VIỆT CÓ DẤU đầy đủ
+- risk_score: Điểm số đánh giá mức độ nguy hiểm trong khoảng [0, 1], trong đó:
+  * 0.8 - 1.0 = Cực kỳ nguy hiểm (dị ứng trực tiếp, có thể gây sốc phản vệ)
+  * 0.6 - 0.79 = Nguy hiểm cao (phản ứng chéo mạnh, ảnh hưởng nghiêm trọng đến bệnh lý)
+  * 0.4 - 0.59 = Nguy hiểm trung bình (ảnh hưởng tiền sử bệnh, cần hạn chế)
+  * 0.2 - 0.39 = Nguy hiểm thấp (cần thận trọng, theo dõi)
+  * 0.0 - 0.19 = Rất thấp (ảnh hưởng nhẹ, có thể sử dụng với lượng nhỏ)
+- Giải thích khoa học phải chuyên sâu nhưng vẫn dễ hiểu cho người không có chuyên môn y khoa
+- Nếu KHÔNG có thành phần nào có vấn đề, trả về warnings = [] và overall_recommendation tích cực
+- Chỉ cảnh báo những thành phần THỰC SỰ có trong danh sách, không tự thêm thành phần mới
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0
+        )
+        data = json.loads(response.choices[0].message.content)
+        return {
+            "warnings": data.get("warnings", []),
+            "safe_ingredients": data.get("safe_ingredients", []),
+            "overall_recommendation": data.get("overall_recommendation", "")
+        }
+    except Exception as e:
+        logging.error(f"Lỗi phân tích health risks: {e}")
+        return {
+            "warnings": [],
+            "safe_ingredients": ingredients,
+            "overall_recommendation": f"Không thể phân tích rủi ro sức khỏe: {str(e)}"
+        }
+
+
+# ---------------------------------------------------------
 # BƯỚC 3: SEMANTIC MAPPING RAG (Core Logic)
 # ---------------------------------------------------------
 def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, threshold: float = 0.55) -> list:
@@ -218,15 +332,22 @@ def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, thresho
 )
 def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
     """
-    Firebase HTTP Function để xử lý OCR + RAG
+    Firebase HTTP Function để xử lý OCR + RAG + Health Analysis
     
     Request Body (JSON):
     {
         "image_base64": "base64_encoded_image_string",
-        "threshold": 0.6  (optional, default 0.6)
+        "threshold": 0.6  (optional, default 0.6),
+        "health_profile": {
+            "medical_history": ["bệnh 1", "bệnh 2"],
+            "allergy": ["dị ứng 1", "dị ứng 2"]
+        }
     }
     
-    Hoặc gửi ảnh trực tiếp qua multipart/form-data với field name là "image"
+    Hoặc gửi qua multipart/form-data:
+    - image: file ảnh
+    - health_profile: JSON string của health profile
+    - threshold: optional
     """
     
     # Chỉ chấp nhận POST
@@ -240,12 +361,25 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
     try:
         image_content = None
         threshold = 0.6
+        health_profile = None
         
         # Xử lý multipart/form-data (upload file trực tiếp)
         if req.files and 'image' in req.files:
             file = req.files['image']
             image_content = file.read()
             threshold = float(req.form.get('threshold', 0.6))
+            
+            # Parse health_profile từ form data
+            health_profile_str = req.form.get('health_profile')
+            if health_profile_str:
+                try:
+                    health_profile = json.loads(health_profile_str)
+                except json.JSONDecodeError:
+                    return https_fn.Response(
+                        json.dumps({"error": "Invalid health_profile JSON format"}),
+                        status=400,
+                        headers={"Content-Type": "application/json"}
+                    )
         
         # Xử lý JSON body (base64 image)
         elif req.is_json:
@@ -266,6 +400,7 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
             
             image_content = base64.b64decode(image_base64)
             threshold = float(data.get('threshold', 0.6))
+            health_profile = data.get('health_profile')
         
         else:
             return https_fn.Response(
@@ -273,6 +408,26 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
                 status=400,
                 headers={"Content-Type": "application/json"}
             )
+        
+        # Validate health_profile (bắt buộc)
+        if not health_profile:
+            return https_fn.Response(
+                json.dumps({
+                    "error": "Missing 'health_profile' field",
+                    "required_format": {
+                        "medical_history": ["bệnh 1", "bệnh 2"],
+                        "allergy": ["dị ứng 1", "dị ứng 2"]
+                    }
+                }),
+                status=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Validate health_profile structure
+        if not isinstance(health_profile.get('medical_history'), list):
+            health_profile['medical_history'] = []
+        if not isinstance(health_profile.get('allergy'), list):
+            health_profile['allergy'] = []
         
         # ===== XỬ LÝ CHÍNH =====
         
@@ -290,7 +445,7 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
                 headers={"Content-Type": "application/json"}
             )
         
-        # 2. Phân tích với OpenAI
+        # 2. Phân tích với OpenAI để trích xuất nguyên liệu
         logging.info("🤖 Đang phân tích với AI...")
         ingredients = analyze_with_openai_strict(ocr_data)
         
@@ -301,29 +456,79 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
                 json.dumps({
                     "success": True,
                     "ingredients": [],
+                    "health_warnings": [],
+                    "safe_ingredients": [],
+                    "risk_summary": {
+                        "max_risk_score": 0,
+                        "avg_risk_score": 0,
+                        "critical_risk_count": 0,
+                        "high_risk_count": 0,
+                        "medium_risk_count": 0,
+                        "low_risk_count": 0,
+                        "very_low_risk_count": 0,
+                        "total_warnings": 0,
+                        "overall_recommendation": "Không tìm thấy nguyên liệu để phân tích."
+                    },
                     "mappings": [],
                     "raw_text": raw_text,
-                    "message": "Không tìm thấy nguyên liệu. Trả về raw OCR text."
-                }),
+                    "message": "Không tìm thấy nguyên liệu. Trả về raw OCR text.",
+                    "user_profile": health_profile
+                }, ensure_ascii=False),
                 status=200,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json; charset=utf-8"}
             )
         
-        # 3. Semantic Mapping
+        # 3. Phân tích rủi ro sức khỏe
+        logging.info("🏥 Đang phân tích rủi ro sức khỏe...")
+        health_analysis = analyze_health_risks(ingredients, health_profile)
+        
+        # 4. Semantic Mapping
         logging.info("🔗 Đang mapping vị trí...")
         mappings = find_coordinates_semantic(ingredients, ocr_data, threshold)
         
-        # 4. Tạo response
+        # 5. Tính toán risk summary dựa trên risk_score
+        warnings = health_analysis.get("warnings", [])
+        
+        # Phân loại theo risk_score
+        critical_risk_count = len([w for w in warnings if w.get("risk_score", 0) >= 0.8])  # 0.8-1.0
+        high_risk_count = len([w for w in warnings if 0.6 <= w.get("risk_score", 0) < 0.8])  # 0.6-0.79
+        medium_risk_count = len([w for w in warnings if 0.4 <= w.get("risk_score", 0) < 0.6])  # 0.4-0.59
+        low_risk_count = len([w for w in warnings if 0.2 <= w.get("risk_score", 0) < 0.4])  # 0.2-0.39
+        very_low_risk_count = len([w for w in warnings if w.get("risk_score", 0) < 0.2])  # 0-0.19
+        
+        # Tính max và avg risk score
+        risk_scores = [w.get("risk_score", 0) for w in warnings]
+        max_risk_score = max(risk_scores) if risk_scores else 0
+        avg_risk_score = sum(risk_scores) / len(risk_scores) if risk_scores else 0
+        
+        # 6. Tạo response
         response_data = {
             "success": True,
             "ingredients": ingredients,
+            "health_warnings": warnings,
+            "safe_ingredients": health_analysis.get("safe_ingredients", []),
+            "risk_summary": {
+                "max_risk_score": round(max_risk_score, 2),
+                "avg_risk_score": round(avg_risk_score, 2),
+                "critical_risk_count": critical_risk_count,
+                "high_risk_count": high_risk_count,
+                "medium_risk_count": medium_risk_count,
+                "low_risk_count": low_risk_count,
+                "very_low_risk_count": very_low_risk_count,
+                "total_warnings": len(warnings),
+                "overall_recommendation": health_analysis.get("overall_recommendation", "")
+            },
             "mappings": mappings,
             "total_ocr_words": len(ocr_data),
             "matched_count": len(mappings),
-            "threshold_used": threshold
+            "threshold_used": threshold,
+            "user_profile": {
+                "allergies_checked": health_profile.get("allergy", []),
+                "conditions_checked": health_profile.get("medical_history", [])
+            }
         }
         
-        logging.info(f"✅ Hoàn thành! Tìm thấy {len(ingredients)} nguyên liệu, mapped {len(mappings)}")
+        logging.info(f"✅ Hoàn thành! Tìm thấy {len(ingredients)} nguyên liệu, {len(warnings)} cảnh báo")
         
         return https_fn.Response(
             json.dumps(response_data, ensure_ascii=False),
@@ -358,5 +563,3 @@ def health_check(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers={"Content-Type": "application/json"}
     )
-
-
