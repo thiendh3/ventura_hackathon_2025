@@ -339,8 +339,6 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
         "image_base64": "base64_encoded_image_string",
         "threshold": 0.6  (optional, default 0.6),
         "health_profile": {
-            "name": "Tên người dùng",
-            "age": 30,
             "medical_history": ["bệnh 1", "bệnh 2"],
             "allergy": ["dị ứng 1", "dị ứng 2"]
         }
@@ -467,6 +465,7 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
                         "high_risk_count": 0,
                         "medium_risk_count": 0,
                         "low_risk_count": 0,
+                        "very_low_risk_count": 0,
                         "total_warnings": 0,
                         "overall_recommendation": "Không tìm thấy nguyên liệu để phân tích."
                     },
@@ -494,7 +493,8 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
         critical_risk_count = len([w for w in warnings if w.get("risk_score", 0) >= 0.8])  # 0.8-1.0
         high_risk_count = len([w for w in warnings if 0.6 <= w.get("risk_score", 0) < 0.8])  # 0.6-0.79
         medium_risk_count = len([w for w in warnings if 0.4 <= w.get("risk_score", 0) < 0.6])  # 0.4-0.59
-        low_risk_count = len([w for w in warnings if w.get("risk_score", 0) < 0.4])  # 0-0.39
+        low_risk_count = len([w for w in warnings if 0.2 <= w.get("risk_score", 0) < 0.4])  # 0.2-0.39
+        very_low_risk_count = len([w for w in warnings if w.get("risk_score", 0) < 0.2])  # 0-0.19
         
         # Tính max và avg risk score
         risk_scores = [w.get("risk_score", 0) for w in warnings]
@@ -514,6 +514,7 @@ def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
                 "high_risk_count": high_risk_count,
                 "medium_risk_count": medium_risk_count,
                 "low_risk_count": low_risk_count,
+                "very_low_risk_count": very_low_risk_count,
                 "total_warnings": len(warnings),
                 "overall_recommendation": health_analysis.get("overall_recommendation", "")
             },
@@ -562,5 +563,3 @@ def health_check(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers={"Content-Type": "application/json"}
     )
-
-
