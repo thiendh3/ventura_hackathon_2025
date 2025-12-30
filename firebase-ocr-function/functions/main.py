@@ -6,13 +6,19 @@ import os
 import json
 import base64
 import logging
+import uuid
 from io import BytesIO
+from datetime import datetime
 
 from firebase_functions import https_fn, options
-from firebase_admin import initialize_app
+from firebase_admin import initialize_app, db, storage
 
 # --- KHỞI TẠO FIREBASE ---
-initialize_app()
+# Cấu hình cho Realtime Database và Storage
+firebase_app = initialize_app(options={
+    'databaseURL': 'https://hackathon-2026-482104-default-rtdb.firebaseio.com/',
+    'storageBucket': 'hackathon-2026-482104.firebasestorage.app'
+})
 
 # --- LAZY LOADING CHO CÁC THƯ VIỆN NẶNG ---
 # Sử dụng lazy loading để tối ưu cold start
@@ -563,3 +569,277 @@ def health_check(req: https_fn.Request) -> https_fn.Response:
         status=200,
         headers={"Content-Type": "application/json"}
     )
+
+
+# ---------------------------------------------------------
+# SAVE HISTORY ENDPOINT
+# ---------------------------------------------------------
+@https_fn.on_request(
+    cors=options.CorsOptions(
+        cors_origins=["*"],
+        cors_methods=["POST"]
+    ),
+    memory=options.MemoryOption.MB_512,
+    timeout_sec=60,
+    region="asia-southeast1"
+)
+def save_history(req: https_fn.Request) -> https_fn.Response:
+    """
+    Lưu lịch sử scan vào Realtime Database + Upload ảnh lên Storage
+    
+    Hỗ trợ 2 cách gửi request:
+    
+    1. JSON Body:
+    {
+        "device_id": "unique_device_identifier",
+        "image_base64": "base64_encoded_image",
+        "scan_result": {...}
+    }
+    
+    2. Multipart Form-Data:
+    - device_id: string
+    - image: file (ảnh)
+    - scan_result: JSON string
+    """
+    
+    if req.method != 'POST':
+        return https_fn.Response(
+            json.dumps({"error": "Method not allowed. Use POST."}),
+            status=405,
+            headers={"Content-Type": "application/json"}
+        )
+    
+    try:
+        device_id = None
+        image_content = None
+        scan_result = None
+        
+        # === CÁCH 1: Multipart Form-Data (upload file trực tiếp) ===
+        if req.files and 'image' in req.files:
+            file = req.files['image']
+            image_content = file.read()
+            
+            device_id = req.form.get('device_id')
+            
+            # Parse scan_result từ form data (JSON string)
+            scan_result_str = req.form.get('scan_result')
+            if scan_result_str:
+                try:
+                    scan_result = json.loads(scan_result_str)
+                except json.JSONDecodeError:
+                    return https_fn.Response(
+                        json.dumps({"error": "Invalid scan_result JSON format"}),
+                        status=400,
+                        headers={"Content-Type": "application/json"}
+                    )
+        
+        # === CÁCH 2: JSON Body (base64 image) ===
+        elif req.is_json:
+            data = req.get_json()
+            
+            device_id = data.get('device_id')
+            scan_result = data.get('scan_result')
+            
+            # Decode base64 image nếu có
+            image_base64 = data.get('image_base64')
+            if image_base64:
+                # Xóa prefix nếu có (data:image/png;base64,...)
+                if ',' in image_base64:
+                    image_base64 = image_base64.split(',')[1]
+                image_content = base64.b64decode(image_base64)
+        
+        else:
+            return https_fn.Response(
+                json.dumps({"error": "Invalid request format. Use JSON or multipart/form-data"}),
+                status=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Validate required fields
+        if not device_id:
+            return https_fn.Response(
+                json.dumps({"error": "Missing 'device_id' field"}),
+                status=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        if not scan_result:
+            return https_fn.Response(
+                json.dumps({"error": "Missing 'scan_result' field"}),
+                status=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Generate unique filename và timestamp
+        timestamp = int(datetime.now().timestamp() * 1000)
+        unique_id = str(uuid.uuid4())[:8]
+        
+        image_url = None
+        
+        # Upload image to Storage nếu có
+        if image_content:
+            try:
+                # Upload to Firebase Storage
+                bucket = storage.bucket()
+                blob_path = f"scan_images/{device_id}/{timestamp}_{unique_id}.jpg"
+                blob = bucket.blob(blob_path)
+                
+                blob.upload_from_string(
+                    image_content,
+                    content_type='image/jpeg'
+                )
+                
+                # Make the blob publicly accessible
+                blob.make_public()
+                image_url = blob.public_url
+                
+                logging.info(f"✅ Uploaded image to: {image_url}")
+                
+            except Exception as e:
+                logging.error(f"❌ Error uploading image: {e}")
+                # Continue without image URL
+                image_url = None
+        
+        # Prepare data for Realtime Database
+        history_data = {
+            "created_at": timestamp,
+            "image_url": image_url,
+            
+            # Ingredients data
+            "ingredients": scan_result.get("ingredients", []),
+            "safe_ingredients": scan_result.get("safe_ingredients", []),
+            
+            # Health warnings (full object)
+            "health_warnings": scan_result.get("health_warnings", []),
+            
+            # Risk summary (full object)
+            "risk_summary": scan_result.get("risk_summary", {}),
+            
+            # Mappings (bounding boxes)
+            "mappings": scan_result.get("mappings", []),
+            
+            # OCR metadata
+            "total_ocr_words": scan_result.get("total_ocr_words", 0),
+            "matched_count": scan_result.get("matched_count", 0),
+            "threshold_used": scan_result.get("threshold_used", 0.6),
+            
+            # User profile
+            "user_profile": scan_result.get("user_profile", {})
+        }
+        
+        # Save to Realtime Database
+        ref = db.reference(f'scan_history/{device_id}')
+        new_ref = ref.push(history_data)
+        history_id = new_ref.key
+        
+        logging.info(f"✅ Saved history: {history_id} for device: {device_id}")
+        
+        return https_fn.Response(
+            json.dumps({
+                "success": True,
+                "history_id": history_id,
+                "image_url": image_url,
+                "created_at": timestamp
+            }, ensure_ascii=False),
+            status=200,
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+        
+    except Exception as e:
+        logging.error(f"❌ Error saving history: {str(e)}")
+        return https_fn.Response(
+            json.dumps({"success": False, "error": str(e)}),
+            status=500,
+            headers={"Content-Type": "application/json"}
+        )
+
+
+# ---------------------------------------------------------
+# GET HISTORY ENDPOINT
+# ---------------------------------------------------------
+@https_fn.on_request(
+    cors=options.CorsOptions(
+        cors_origins=["*"],
+        cors_methods=["GET"]
+    ),
+    memory=options.MemoryOption.MB_256,
+    timeout_sec=30,
+    region="asia-southeast1"
+)
+def get_history(req: https_fn.Request) -> https_fn.Response:
+    """
+    Lấy lịch sử scan từ Realtime Database
+    
+    Query Parameters:
+    - device_id: (required) Device identifier
+    - limit: (optional) Max items to return, default 20, max 100
+    """
+    
+    if req.method != 'GET':
+        return https_fn.Response(
+            json.dumps({"error": "Method not allowed. Use GET."}),
+            status=405,
+            headers={"Content-Type": "application/json"}
+        )
+    
+    try:
+        # Get query parameters
+        device_id = req.args.get('device_id')
+        limit = min(int(req.args.get('limit', 20)), 100)  # Max 100 items
+        
+        if not device_id:
+            return https_fn.Response(
+                json.dumps({"error": "Missing 'device_id' query parameter"}),
+                status=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        # Query Realtime Database
+        ref = db.reference(f'scan_history/{device_id}')
+        
+        # Get data ordered by created_at (descending - newest first)
+        # Realtime DB orders ascending by default, so we get all and reverse
+        snapshot = ref.order_by_child('created_at').limit_to_last(limit).get()
+        
+        if not snapshot:
+            return https_fn.Response(
+                json.dumps({
+                    "success": True,
+                    "history": [],
+                    "count": 0
+                }, ensure_ascii=False),
+                status=200,
+                headers={"Content-Type": "application/json; charset=utf-8"}
+            )
+        
+        # Convert to list and add ID
+        history_list = []
+        for history_id, history_data in snapshot.items():
+            history_item = {
+                "id": history_id,
+                **history_data
+            }
+            history_list.append(history_item)
+        
+        # Sort by created_at descending (newest first)
+        history_list.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+        
+        logging.info(f"✅ Retrieved {len(history_list)} history items for device: {device_id}")
+        
+        return https_fn.Response(
+            json.dumps({
+                "success": True,
+                "history": history_list,
+                "count": len(history_list)
+            }, ensure_ascii=False),
+            status=200,
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+        
+    except Exception as e:
+        logging.error(f"❌ Error getting history: {str(e)}")
+        return https_fn.Response(
+            json.dumps({"success": False, "error": str(e)}),
+            status=500,
+            headers={"Content-Type": "application/json"}
+        )
