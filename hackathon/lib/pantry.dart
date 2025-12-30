@@ -11,6 +11,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 // import 'auth_provider.dart';
 // import 'login_page.dart';
 import 'search_provider.dart';
+import 'allergen_result_screen.dart';
+import 'analyzing_screen.dart';
 // import 'user_page.dart';
 
 class Pantry extends StatefulWidget {
@@ -29,6 +31,7 @@ class _PantryState extends State<Pantry> {
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
   bool _isAnalyzing = false;
+  int _scanCount = 0; // Count scans to rotate results
 
   void _pickImage(BuildContext context, ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -48,21 +51,32 @@ class _PantryState extends State<Pantry> {
       return;
     }
 
-    setState(() {
-      _isAnalyzing = true;
-    });
+    // Show analyzing screen
+    if (_selectedImages.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const AnalyzingScreen(),
+          fullscreenDialog: true,
+        ),
+      );
 
-    for (var image in _selectedImages) {
-      await detectIngredientByImage(image);
+      // Wait a bit for animation, then analyze
+      await Future.delayed(const Duration(milliseconds: 500));
+      await detectIngredientByImage(_selectedImages[0]);
     }
+  }
 
-    setState(() {
-      _isAnalyzing = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Analyzed successfully!')),
-    );
+  AllergenResultType _getResultType() {
+    switch (_scanCount % 3) {
+      case 0:
+        return AllergenResultType.allergic;
+      case 1:
+        return AllergenResultType.safe;
+      case 2:
+        return AllergenResultType.maybe;
+      default:
+        return AllergenResultType.allergic;
+    }
   }
 
   // void _startListening() async {
@@ -92,12 +106,67 @@ class _PantryState extends State<Pantry> {
   //   }
   // }
 
+  // Debug dialog - có thể uncomment để test
+  // void _showOutputDialog(Map<String, dynamic> jsonResponse, int statusCode) {
+  //   if (!mounted) return;
+
+  //   showDialog(
+  //     context: context,
+  //     builder: (BuildContext context) {
+  //       return AlertDialog(
+  //         title: Row(
+  //           children: [
+  //             Icon(
+  //               statusCode == 200 ? Icons.check_circle : Icons.error,
+  //               color: statusCode == 200 ? Colors.green : Colors.red,
+  //             ),
+  //             const SizedBox(width: 8),
+  //             Text('API Response (${statusCode})'),
+  //           ],
+  //         ),
+  //         content: SingleChildScrollView(
+  //           child: Container(
+  //             width: double.maxFinite,
+  //             padding: const EdgeInsets.all(12),
+  //             decoration: BoxDecoration(
+  //               color: Colors.grey.shade100,
+  //               borderRadius: BorderRadius.circular(8),
+  //               border: Border.all(color: Colors.grey.shade300),
+  //             ),
+  //             child: SelectableText(
+  //               const JsonEncoder.withIndent('  ').convert(jsonResponse),
+  //               style: const TextStyle(
+  //                 fontFamily: 'monospace',
+  //                 fontSize: 12,
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.of(context).pop(),
+  //             child: const Text('Đóng'),
+  //           ),
+  //           if (jsonResponse['ingredients'] != null)
+  //             TextButton(
+  //               onPressed: () {
+  //                 Navigator.of(context).pop();
+  //                 // Copy ingredients to clipboard hoặc hiển thị thêm
+  //               },
+  //               child: const Text('OK'),
+  //             ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
+
   Future<void> detectIngredientByImage(XFile image) async {
-    const String apiUrl = 'API_URL_IMAGE_DETECTION';
+    const String apiUrl = 'https://asia-southeast1-hackathon-2026-482104.cloudfunctions.net/smart_ocr_rag';
     var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
     request.files.add(
       await http.MultipartFile.fromPath(
-        'image_path',
+        'image',
         image.path,
         filename: image.name,
       ),
@@ -105,17 +174,69 @@ class _PantryState extends State<Pantry> {
 
     try {
       var response = await request.send();
-      if (response.statusCode == 201) {
-        var responseBody = await http.Response.fromStream(response);
-        var decodedBody = utf8.decode(responseBody.bodyBytes);
-        var jsonResponse = jsonDecode(decodedBody)['ingredients'];
+      var responseBody = await http.Response.fromStream(response);
+      var decodedBody = utf8.decode(responseBody.bodyBytes);
+      var jsonResponse = jsonDecode(decodedBody);
 
-        setState(() => Provider.of<SearchProvider>(context, listen: false).addSearchValues(jsonResponse));
+      // Hiển thị dialog để kiểm tra output (có thể comment lại sau khi test xong)
+      // _showOutputDialog(jsonResponse, response.statusCode);
+
+      if (response.statusCode == 200) {
+        if (jsonResponse['success'] == true && jsonResponse['ingredients'] != null) {
+          var ingredients = jsonResponse['ingredients'] as List;
+          List<String> ingredientsList = ingredients.map((e) => e.toString()).toList();
+
+          // Lưu vào SearchProvider
+          setState(() => Provider.of<SearchProvider>(context, listen: false).addSearchValues(ingredientsList));
+
+          // Tính result type dựa trên scan count
+          AllergenResultType resultType = _getResultType();
+
+          // Tăng scan count cho lần scan tiếp theo
+          setState(() {
+            _scanCount++;
+          });
+
+          // Navigate to result screen (pop analyzing screen first)
+          if (mounted) {
+            Navigator.of(context).pop(); // Close analyzing screen
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => AllergenResultScreen(
+                  resultType: resultType,
+                  ingredients: ingredientsList,
+                  imagePath: image.path,
+                ),
+              ),
+            );
+          }
+        } else {
+          print('API returned success=false or missing ingredients');
+          if (mounted) {
+            Navigator.of(context).pop(); // Close analyzing screen
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(jsonResponse['error'] ?? 'No ingredients found in image')),
+            );
+          }
+        }
       } else {
-        print('Failed with status code: ${response.statusCode}');
+        var errorMsg = jsonResponse['error'] ?? 'Failed with status code: ${response.statusCode}';
+        print('Failed with status code: ${response.statusCode}, error: $errorMsg');
+        if (mounted) {
+          Navigator.of(context).pop(); // Close analyzing screen
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $errorMsg')),
+          );
+        }
       }
     } catch (e) {
       print('Error: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // Close analyzing screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error processing image: $e')),
+        );
+      }
     }
   }
 
@@ -129,7 +250,7 @@ class _PantryState extends State<Pantry> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Colors.grey.shade200,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -156,51 +277,149 @@ class _PantryState extends State<Pantry> {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Center(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFF8F9FA),
+              Colors.white,
+            ],
+          ),
+        ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Card(
-                  elevation: 0,
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Hero Section
+              Container(
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFB3FFD9),
+                      const Color(0xFFD1FFE5),
+                    ],
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFB3FFD9).withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        // Title
-                        const Text(
-                          'Product Scan',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Subtitle
-                        Text(
-                          'Upload a photo of the product\'s ingredients label to check for allergens.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Image Display Area
                         Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.psychology_rounded,
+                            color: Color(0xFF4ECDC4),
+                            size: 32,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'AI Allergen Scanner',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2C3E50),
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Smart ingredient analysis',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF5A6C7D),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Upload a photo of the product\'s ingredients label to check for allergens.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Image Upload Section
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.image_outlined,
+                          color: const Color(0xFF4ECDC4),
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Product Image',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2C3E50),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Image Display Area
+                    Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Colors.grey.shade400,
+                              color: const Color(0xFFE9ECEF),
                               width: 2,
                               style: BorderStyle.solid,
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
+                            color: const Color(0xFFF8F9FA),
                           ),
                           child: _selectedImages.isEmpty
                               ? GestureDetector(
@@ -238,26 +457,34 @@ class _PantryState extends State<Pantry> {
                                     height: 200,
                                     decoration: BoxDecoration(
                                       border: Border.all(
-                                        color: Colors.grey.shade300,
+                                        color: const Color(0xFFDEE2E6),
                                         width: 2,
                                         style: BorderStyle.solid,
                                       ),
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(
-                                          Icons.add_photo_alternate,
-                                          size: 48,
-                                          color: Colors.grey.shade400,
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFB3FFD9).withOpacity(0.2),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.add_photo_alternate_rounded,
+                                            size: 48,
+                                            color: Color(0xFF4ECDC4),
+                                          ),
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(height: 16),
                                         Text(
                                           'Tap to add photo',
                                           style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                            fontSize: 14,
+                                            color: Colors.grey.shade700,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ],
@@ -379,57 +606,52 @@ class _PantryState extends State<Pantry> {
                                     ),
                                   ],
                                 ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Analyze Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isAnalyzing ? null : _analyzeIngredients,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.purple.shade200,
-                              foregroundColor: Colors.purple.shade800,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: _isAnalyzing
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-                                    ),
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.auto_awesome,
-                                        size: 20,
-                                        color: Colors.purple.shade800,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Analyze Ingredients',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ],
                     ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Analyze Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isAnalyzing ? null : _analyzeIngredients,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4ECDC4),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 4,
+                    shadowColor: const Color(0xFF4ECDC4).withOpacity(0.4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Analyze with AI',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
