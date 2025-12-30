@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 import 'auth_provider.dart';
 // import 'favorites.dart';
@@ -8,9 +9,11 @@ import 'auth_provider.dart';
 import 'pantry.dart';
 // import 'shopping_list.dart';
 import 'search_provider.dart';
+import 'allergen_profile_provider.dart';
+import 'allergen_chatbot_screen.dart';
 
 Future<void> main() async {
-  await Supabase.initialize(
+  await supabase.Supabase.initialize(
     url: 'supabase_url',
     anonKey: 'anon_key',
   );
@@ -19,6 +22,7 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => SearchProvider()),
         ChangeNotifierProvider(create: (context) => AuthProvider()),
+        ChangeNotifierProvider(create: (context) => AllergenProfileProvider()),
       ],
       child: const MyApp(),
     ),
@@ -51,6 +55,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late List<Widget> _tabs;
+  bool _isCheckingProfile = true;
 
   @override
   void initState() {
@@ -61,10 +66,57 @@ class _HomeScreenState extends State<HomeScreen> {
       // Favorites(),
       // ShoppingList()
     ];
+    _checkProfileAndNavigate();
+  }
+
+  Future<void> _checkProfileAndNavigate() async {
+    final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
+    await allergenProvider.loadProfile();
+
+    if (mounted) {
+      final hasProfile = await allergenProvider.checkHasProfile();
+      setState(() => _isCheckingProfile = false);
+
+      if (!hasProfile) {
+        // Navigate to chatbot screen
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const AllergenChatbotScreen()),
+            );
+          }
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingProfile) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SpinKitPouringHourGlass(
+                color: Color(0xFF4ECDC4),
+                size: 50,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Loading...',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: _tabs[_currentIndex],
       // bottomNavigationBar: BottomNavigationBar(

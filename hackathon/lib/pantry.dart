@@ -8,12 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 
-// import 'auth_provider.dart';
 // import 'login_page.dart';
 import 'search_provider.dart';
 import 'allergen_result_screen.dart';
 import 'analyzing_screen.dart';
-// import 'user_page.dart';
+import 'user_page.dart';
 
 class Pantry extends StatefulWidget {
   const Pantry({super.key});
@@ -252,6 +251,15 @@ class _PantryState extends State<Pantry> {
       key: _scaffoldKey,
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.person),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const UserPage()),
+            );
+          },
+        ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
