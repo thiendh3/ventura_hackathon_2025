@@ -6,12 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 
-import 'search_provider.dart';
 import 'allergen_result_screen.dart';
 import 'analyzing_screen.dart';
 import 'services/device_id_service.dart';
 import 'allergen_profile_provider.dart';
 import 'services/translation_service.dart';
+import 'services/history_service.dart';
 import 'config/allergen_thresholds.dart';
 
 class CameraTab extends StatefulWidget {
@@ -168,6 +168,14 @@ class _CameraTabState extends State<CameraTab> {
           }
 
           AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
+
+          DeviceIdService().getDeviceId().then((deviceId) {
+            HistoryService().saveScanHistory(
+              deviceId: deviceId,
+              imageFile: image,
+              scanResult: jsonResponse,
+            );
+          });
 
           if (mounted) {
             Navigator.of(context).pop();
