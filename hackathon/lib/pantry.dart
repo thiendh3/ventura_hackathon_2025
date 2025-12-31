@@ -32,7 +32,6 @@ class _PantryState extends State<Pantry> {
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
   bool _isAnalyzing = false;
-  int _scanCount = 0; // Count scans to rotate results
 
   void _pickImage(BuildContext context, ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -68,16 +67,9 @@ class _PantryState extends State<Pantry> {
   }
 
   AllergenResultType _getResultType() {
-    switch (_scanCount % 3) {
-      case 0:
-        return AllergenResultType.allergic;
-      case 1:
-        return AllergenResultType.safe;
-      case 2:
-        return AllergenResultType.maybe;
-      default:
-        return AllergenResultType.allergic;
-    }
+    // Fallback: khi không có health data, trả về safe như một giá trị mặc định an toàn
+    // Logic này chỉ được gọi khi không có health_warnings hoặc risk_summary từ API
+    return AllergenResultType.safe;
   }
 
   AllergenResultType _calculateResultType(List<dynamic>? healthWarnings, Map<String, dynamic>? riskSummary) {
@@ -204,11 +196,6 @@ class _PantryState extends State<Pantry> {
 
           // Tính result type dựa trên health_warnings và risk_summary
           AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
-
-          // Tăng scan count cho lần scan tiếp theo
-          setState(() {
-            _scanCount++;
-          });
 
           // Navigate to result screen (pop analyzing screen first)
           if (mounted) {
