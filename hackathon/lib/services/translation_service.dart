@@ -40,7 +40,6 @@ class TranslationService {
 
     final List<String> translated = [];
     final List<String> toTranslate = [];
-
     for (var ingredient in ingredients) {
       if (_translationCache.containsKey(ingredient)) {
         translated.add(_translationCache[ingredient]!);
@@ -55,15 +54,16 @@ class TranslationService {
 
     try {
       final translatedBatch = await _translateWithAI(toTranslate);
-
       for (int i = 0; i < toTranslate.length; i++) {
         final original = toTranslate[i];
-        final translatedText = translatedBatch[i];
+        final translatedText = i < translatedBatch.length
+            ? translatedBatch[i]
+            : original; // Fallback to original if translation failed
         _translationCache[original] = translatedText;
         translated.add(translatedText);
       }
 
-      await _saveCache();
+      _saveCache().catchError((e) {});
     } catch (e) {
       translated.addAll(toTranslate);
     }
@@ -72,6 +72,7 @@ class TranslationService {
   }
 
   Future<String> translateIngredient(String ingredient) async {
+    // Early return for empty string
     if (ingredient.isEmpty) return ingredient;
 
     if (_translationCache.containsKey(ingredient)) {
@@ -83,7 +84,10 @@ class TranslationService {
       final result = translated.isNotEmpty ? translated[0] : ingredient;
 
       _translationCache[ingredient] = result;
-      await _saveCache();
+      // Save cache asynchronously - don't block return
+      _saveCache().catchError((e) {
+        // Silently handle cache save errors
+      });
 
       return result;
     } catch (e) {
@@ -92,6 +96,8 @@ class TranslationService {
   }
 
   Future<List<String>> _translateWithAI(List<String> ingredients) async {
+    if (ingredients.isEmpty) return ingredients;
+
     final ingredientsText = ingredients.join(', ');
 
     final messages = [
@@ -141,8 +147,13 @@ Output: "Sữa, Trứng, Sữa, Không có sữa"''',
 
       if (translatedList.length == ingredients.length) {
         return translatedList;
+      } else if (translatedList.isNotEmpty) {
+        while (translatedList.length < ingredients.length) {
+          translatedList.add(ingredients[translatedList.length]);
+        }
+        return translatedList;
       } else {
-        return translatedList.length > 0 ? translatedList : ingredients;
+        return ingredients;
       }
     } else {
       throw Exception('Translation API error: ${response.statusCode}');

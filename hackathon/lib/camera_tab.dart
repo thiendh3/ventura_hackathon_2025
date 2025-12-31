@@ -24,7 +24,6 @@ class CameraTab extends StatefulWidget {
 class _CameraTabState extends State<CameraTab> {
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
-  bool _isAnalyzing = false;
 
   void _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -45,7 +44,6 @@ class _CameraTabState extends State<CameraTab> {
       ),
     );
 
-    await Future.delayed(const Duration(milliseconds: 500));
     await detectIngredientByImage(image);
   }
 
@@ -122,42 +120,66 @@ class _CameraTabState extends State<CameraTab> {
       var jsonResponse = jsonDecode(decodedBody);
 
       if (response.statusCode == 200) {
-        if (jsonResponse['success'] == true && jsonResponse['ingredients'] != null) {
-          var ingredients = jsonResponse['ingredients'] as List;
-          List<String> ingredientsList = ingredients.map((e) => e.toString()).toList();
-          ingredientsList = await TranslationService().translateIngredients(ingredientsList);
+        if (jsonResponse['success'] != true || jsonResponse['ingredients'] == null) {
+          if (mounted) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(jsonResponse['error'] ?? 'Không tìm thấy thành phần trong hình ảnh')),
+            );
+          }
+          return;
+        }
 
-          final healthWarnings = jsonResponse['health_warnings'] as List<dynamic>?;
-          final riskSummary = jsonResponse['risk_summary'] as Map<String, dynamic>?;
-          final safeIngredients = (jsonResponse['safe_ingredients'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ?? [];
-          final safeIngredientsTranslated = await TranslationService().translateIngredients(safeIngredients);
+        var ingredients = jsonResponse['ingredients'] as List;
+        List<String> ingredientsList = ingredients.map((e) => e.toString()).toList();
 
-          final mappings = jsonResponse['mappings'] as List<dynamic>?;
+        final healthWarnings = jsonResponse['health_warnings'] as List<dynamic>?;
+        final riskSummary = jsonResponse['risk_summary'] as Map<String, dynamic>?;
+        final safeIngredients = (jsonResponse['safe_ingredients'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ?? [];
 
-          List<Map<String, dynamic>> allergicMappings = [];
-          if (mappings != null && healthWarnings != null) {
-            final allergicIngredientNames = healthWarnings
-                .map((w) => w['ingredient']?.toString().toLowerCase().trim() ?? '')
-                .where((name) => name.isNotEmpty)
-                .toSet();
+        final mappings = jsonResponse['mappings'] as List<dynamic>?;
 
-            for (var mapping in mappings) {
-              final label = mapping['label']?.toString().toLowerCase().trim() ?? '';
-              if (label.isNotEmpty && allergicIngredientNames.contains(label)) {
-                allergicMappings.add(Map<String, dynamic>.from(mapping));
-              }
+        final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
+        final userAllergens = allergenProvider.allergens;
+
+        final translationResults = await Future.wait([
+          TranslationService().translateIngredients(ingredientsList),
+          TranslationService().translateIngredients(safeIngredients),
+          userAllergens.isNotEmpty 
+              ? TranslationService().translateIngredients(userAllergens)
+              : Future.value(<String>[]),
+        ]);
+
+        ingredientsList = translationResults[0];
+        final safeIngredientsTranslated = translationResults[1];
+        final translatedAllergens = translationResults[2];
+
+        List<Map<String, dynamic>> allergicMappings = [];
+        if (mappings != null && healthWarnings != null) {
+          final allergicIngredientNames = healthWarnings
+              .map((w) => w['ingredient']?.toString().toLowerCase().trim() ?? '')
+              .where((name) => name.isNotEmpty)
+              .toSet();
+
+          for (var mapping in mappings) {
+            final label = mapping['label']?.toString().toLowerCase().trim() ?? '';
+            if (label.isNotEmpty && allergicIngredientNames.contains(label)) {
+              allergicMappings.add(Map<String, dynamic>.from(mapping));
             }
           }
+        }
 
-          final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
-          final userAllergens = allergenProvider.allergens;
-
-          bool hasHiddenAllergen = false;
+        bool hasHiddenAllergen = false;
+        if (userAllergens.isNotEmpty && translatedAllergens.isNotEmpty) {
           for (var ingredient in ingredientsList) {
-            for (var allergen in userAllergens) {
-              final translatedAllergen = await TranslationService().translateIngredient(allergen);
+            for (int i = 0; i < userAllergens.length; i++) {
+              final allergen = userAllergens[i];
+              final translatedAllergen = i < translatedAllergens.length 
+                  ? translatedAllergens[i] 
+                  : allergen;
+              
               if (TranslationService.matchesAllergen(ingredient, translatedAllergen) ||
                   TranslationService.matchesAllergen(ingredient, allergen)) {
                 hasHiddenAllergen = true;
@@ -166,41 +188,34 @@ class _CameraTabState extends State<CameraTab> {
             }
             if (hasHiddenAllergen) break;
           }
+        }
 
-          AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
+        AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
 
-          DeviceIdService().getDeviceId().then((deviceId) {
-            HistoryService().saveScanHistory(
-              deviceId: deviceId,
-              imageFile: image,
-              scanResult: jsonResponse,
-            );
-          });
+        DeviceIdService().getDeviceId().then((deviceId) {
+          HistoryService().saveScanHistory(
+            deviceId: deviceId,
+            imageFile: image,
+            scanResult: jsonResponse,
+          ).catchError((error) {});
+        }).catchError((error) {});
 
-          if (mounted) {
-            Navigator.of(context).pop();
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => AllergenResultScreen(
-                  resultType: resultType,
-                  ingredients: ingredientsList,
-                  imagePath: image.path,
-                  healthWarnings: healthWarnings?.cast<Map<String, dynamic>>(),
-                  riskSummary: riskSummary,
-                  safeIngredients: safeIngredientsTranslated,
-                  allIngredients: ingredientsList,
-                  ingredientMappings: allergicMappings.isNotEmpty ? allergicMappings : null,
-                ),
+        if (mounted) {
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => AllergenResultScreen(
+                resultType: resultType,
+                ingredients: ingredientsList,
+                imagePath: image.path,
+                healthWarnings: healthWarnings?.cast<Map<String, dynamic>>(),
+                riskSummary: riskSummary,
+                safeIngredients: safeIngredientsTranslated,
+                allIngredients: ingredientsList,
+                ingredientMappings: allergicMappings.isNotEmpty ? allergicMappings : null,
               ),
-            );
-          }
-        } else {
-          if (mounted) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(jsonResponse['error'] ?? 'Không tìm thấy thành phần trong hình ảnh')),
-            );
-          }
+            ),
+          );
         }
       } else {
         var errorMsg = jsonResponse['error'] ?? 'Lỗi với mã trạng thái: ${response.statusCode}';

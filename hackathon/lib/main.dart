@@ -59,6 +59,16 @@ class _HomeScreenState extends State<HomeScreen> {
             _currentIndex = 3;
           });
         },
+        onCameraTap: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+        onHistoryTap: () {
+          setState(() {
+            _currentIndex = 2;
+          });
+        },
       ),
       const CameraTab(),
       const HistoryTab(),
