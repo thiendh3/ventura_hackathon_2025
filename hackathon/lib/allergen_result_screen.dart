@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'services/translation_service.dart';
 import 'config/allergen_thresholds.dart';
+import 'image_highlight_screen.dart';
 
 enum AllergenResultType {
   allergic, // Allergic
@@ -17,6 +18,7 @@ class AllergenResultScreen extends StatefulWidget {
   final Map<String, dynamic>? riskSummary;
   final List<String>? safeIngredients;
   final List<String>? allIngredients;
+  final List<Map<String, dynamic>>? ingredientMappings;
 
   const AllergenResultScreen({
     super.key,
@@ -27,6 +29,7 @@ class AllergenResultScreen extends StatefulWidget {
     this.riskSummary,
     this.safeIngredients,
     this.allIngredients,
+    this.ingredientMappings,
   });
 
   @override
@@ -49,7 +52,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
   void initState() {
     super.initState();
 
-    // Fade animation
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -58,7 +60,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
       CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
     );
 
-    // Scale animation
     _scaleController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -67,7 +68,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
       CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut),
     );
 
-    // Pulse animation (for allergic)
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -76,7 +76,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Shake animation (for maybe)
     _shakeController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -85,7 +84,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
       CurvedAnimation(parent: _shakeController, curve: Curves.elasticInOut),
     );
 
-    // Start animations
     _fadeController.forward();
     _scaleController.forward();
 
@@ -124,17 +122,30 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     );
   }
 
+  void _navigateToImageHighlight() {
+    if (widget.imagePath != null && 
+        widget.ingredientMappings != null && 
+        widget.ingredientMappings!.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ImageHighlightScreen(
+            imagePath: widget.imagePath!,
+            mappings: widget.ingredientMappings!,
+            healthWarnings: widget.healthWarnings,
+          ),
+        ),
+      );
+    }
+  }
+
   void _showIngredientDetails(Map<String, dynamic> warning) async {
     final riskScore = (warning['risk_score'] as num?)?.toDouble() ?? 0.0;
     final riskType = riskScore >= AllergenThresholds.highRisk ? AllergenResultType.allergic : AllergenResultType.maybe;
-    // Translate ingredient for display
     final originalIngredient = warning['ingredient']?.toString() ?? 'Không xác định';
     final ingredient = await TranslationService().translateIngredient(originalIngredient);
 
-    // Fields that need special handling (displayed separately)
     final specialFields = {'risk_score', 'ingredient', 'warning_type'};
 
-    // Get all other fields dynamically
     final dynamicFields = <String, dynamic>{};
     warning.forEach((key, value) {
       if (!specialFields.contains(key) && value != null) {
@@ -164,7 +175,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Row(
@@ -187,14 +197,12 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                   ],
                 ),
               ),
-              // Content
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Risk Score
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -223,7 +231,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Dynamic fields - automatically display all fields from warning
                       ...dynamicFields.entries.map((entry) {
                         return _buildDynamicField(
                           entry.key,
@@ -321,11 +328,9 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
   }
 
   String _getSubText() {
-    // Use overall_recommendation from risk_summary if available
     if (widget.riskSummary != null && widget.riskSummary!['overall_recommendation'] != null) {
       return widget.riskSummary!['overall_recommendation'] as String;
     }
-    // Fallback to default text
     switch (widget.resultType) {
       case AllergenResultType.allergic:
         return 'Sản phẩm này có thể gây phản ứng dị ứng';
@@ -336,12 +341,9 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     }
   }
 
-  /// Build a dynamic field widget for warning details
   Widget _buildDynamicField(String key, dynamic value, AllergenResultType riskType) {
-    // Translate field name to Vietnamese
     final fieldLabel = _translateFieldName(key);
 
-    // Handle different value types
     if (value is List) {
       if (value.isEmpty) return const SizedBox.shrink();
       return Column(
@@ -386,7 +388,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
         ],
       );
     } else if (value is Map) {
-      // Handle nested objects
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -431,7 +432,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
         ],
       );
     } else {
-      // Handle string, number, boolean
       final stringValue = value.toString();
       if (stringValue.isEmpty) return const SizedBox.shrink();
 
@@ -461,7 +461,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     }
   }
 
-  /// Translate field name from English to Vietnamese
   String _translateFieldName(String fieldName) {
     final translations = {
       'summary': 'Tóm tắt',
@@ -483,20 +482,14 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     return translations[fieldName.toLowerCase()] ??
            fieldName.split('_').map((word) =>
              word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
-           ).join(' ');
+           ).join(' '    );
   }
 
-  // Get risk type for a specific ingredient
-  // Note: ingredient is already translated to Vietnamese from pantry.dart
   Map<String, dynamic> _getIngredientRiskType(String ingredient) {
-    // Check if ingredient has health warning
-    // Note: ingredient is already translated, but warning['ingredient'] might be in English/Thai
     if (widget.healthWarnings != null) {
       for (var warning in widget.healthWarnings!) {
         final warningIngredient = warning['ingredient']?.toString() ?? '';
 
-        // Use matching function to check if they match (handles Thai, English, Vietnamese)
-        // Since ingredient is already translated, we compare with both original and translated warning
         if (TranslationService.matchesAllergen(ingredient, warningIngredient) ||
             warningIngredient.toLowerCase() == ingredient.toLowerCase() ||
             ingredient.toLowerCase().contains(warningIngredient.toLowerCase()) ||
@@ -510,7 +503,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
         }
       }
     }
-    // Check if ingredient is in safe list (both are already translated)
     if (widget.safeIngredients != null &&
         widget.safeIngredients!.any((safe) => safe.toLowerCase() == ingredient.toLowerCase())) {
       return {
@@ -519,7 +511,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
         'hasWarning': false,
       };
     }
-    // Unknown/other ingredient
     return {
       'type': AllergenResultType.maybe,
       'warning': null,
@@ -549,7 +540,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     }
   }
 
-  // Legacy methods for backward compatibility
   IconData _getIngredientIconLegacy() {
     switch (widget.resultType) {
       case AllergenResultType.allergic:
@@ -635,12 +625,10 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
   }
 
   Widget _buildIngredientsList() {
-    // Organize ingredients into sections
     final List<String> warningIngredients = [];
     final List<String> safeIngredientList = [];
     final List<String> otherIngredients = [];
 
-    // Use allIngredients if available, otherwise use ingredients
     final allIngredientList = widget.allIngredients ?? widget.ingredients;
 
     for (var ingredient in allIngredientList) {
@@ -683,7 +671,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
             ),
           ),
           const SizedBox(height: 16),
-          // Warning Ingredients Section
           if (warningIngredients.isNotEmpty) ...[
             Row(
               children: [
@@ -715,7 +702,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        ingredient, // Already translated in pantry.dart
+                        ingredient,
                         style: TextStyle(
                           fontSize: 15,
                           color: _getTextColor().withOpacity(0.9),
@@ -737,7 +724,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
             }),
             const SizedBox(height: 16),
           ],
-          // Safe Ingredients Section
           if (safeIngredientList.isNotEmpty) ...[
             Row(
               children: [
@@ -768,7 +754,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        ingredient, // Already translated in pantry.dart
+                        ingredient,
                         style: TextStyle(
                           fontSize: 15,
                           color: _getTextColor().withOpacity(0.9),
@@ -782,7 +768,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
             }),
             const SizedBox(height: 16),
           ],
-          // Other Ingredients Section
           if (otherIngredients.isNotEmpty) ...[
             Row(
               children: [
@@ -813,7 +798,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        ingredient, // Already translated in pantry.dart
+                        ingredient,
                         style: TextStyle(
                           fontSize: 15,
                           color: _getTextColor().withOpacity(0.9),
@@ -826,7 +811,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
               );
             }),
           ],
-          // Fallback: if no sections, show all ingredients with legacy icons
           if (warningIngredients.isEmpty && safeIngredientList.isEmpty && otherIngredients.isEmpty) ...[
             ...widget.ingredients.map((ingredient) {
               return Padding(
@@ -841,7 +825,7 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        ingredient, // Already translated in pantry.dart
+                        ingredient,
                         style: TextStyle(
                           fontSize: 15,
                           color: _getTextColor().withOpacity(0.9),
@@ -875,7 +859,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
             opacity: _fadeAnimation,
             child: Column(
               children: [
-                // Header với nút đóng
                 Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Row(
@@ -911,7 +894,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                   ),
                 ),
 
-                // Main content
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -920,12 +902,10 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                       children: [
                         const SizedBox(height: 24),
 
-                        // Animated Icon
                         _buildAnimatedIcon(),
 
                         const SizedBox(height: 24),
 
-                        // Main Text
                         Text(
                           _getMainText(),
                           style: TextStyle(
@@ -939,7 +919,6 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
 
                         const SizedBox(height: 12),
 
-                        // Sub Text
                         Text(
                           _getSubText(),
                           style: TextStyle(
@@ -953,14 +932,43 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
 
                         const SizedBox(height: 24),
 
-                        // Ingredients List
                         if (widget.ingredients.isNotEmpty) ...[
                           _buildIngredientsList(),
                         ],
 
+                        if (widget.ingredientMappings != null && 
+                            widget.ingredientMappings!.isNotEmpty &&
+                            widget.imagePath != null) ...[
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _navigateToImageHighlight(),
+                              icon: Icon(Icons.image, color: _getTextColor()),
+                              label: Text(
+                                'Xem trên ảnh',
+                                style: TextStyle(
+                                  color: _getTextColor(),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: _getTextColor(),
+                                  width: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 24),
 
-                        // Action Buttons
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(

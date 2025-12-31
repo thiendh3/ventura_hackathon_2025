@@ -76,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isCheckingProfile = false);
 
       if (!hasProfile) {
-        // Navigate to chatbot screen
         Future.delayed(const Duration(milliseconds: 100), () {
           if (mounted) {
             Navigator.of(context).pushReplacement(

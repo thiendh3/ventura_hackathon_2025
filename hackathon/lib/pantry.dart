@@ -20,15 +20,11 @@ class Pantry extends StatefulWidget {
   const Pantry({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _PantryState createState() => _PantryState();
 }
 
 class _PantryState extends State<Pantry> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  // late stt.SpeechToText _speech;
-  // bool _isListening = false;
-  // String _spokenText = '';
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
   bool _isAnalyzing = false;
@@ -51,7 +47,6 @@ class _PantryState extends State<Pantry> {
       return;
     }
 
-    // Show analyzing screen
     if (_selectedImages.isNotEmpty) {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -60,20 +55,16 @@ class _PantryState extends State<Pantry> {
         ),
       );
 
-      // Wait a bit for animation, then analyze
       await Future.delayed(const Duration(milliseconds: 500));
       await detectIngredientByImage(_selectedImages[0]);
     }
   }
 
   AllergenResultType _getResultType() {
-    // Fallback: khi không có health data, trả về safe như một giá trị mặc định an toàn
-    // Logic này chỉ được gọi khi không có health_warnings hoặc risk_summary từ API
     return AllergenResultType.safe;
   }
 
   AllergenResultType _calculateResultType(List<dynamic>? healthWarnings, Map<String, dynamic>? riskSummary) {
-    // Priority 1: Check health_warnings first (most reliable)
     if (healthWarnings != null && healthWarnings.isNotEmpty) {
       double maxWarningScore = 0.0;
       for (var warning in healthWarnings) {
@@ -92,7 +83,6 @@ class _PantryState extends State<Pantry> {
       }
     }
 
-    // Priority 2: Use risk_summary if available
     if (riskSummary != null && riskSummary['max_risk_score'] != null) {
       final maxRiskScore = (riskSummary['max_risk_score'] as num).toDouble();
 
@@ -105,7 +95,6 @@ class _PantryState extends State<Pantry> {
       }
     }
 
-    // Fallback to old behavior if no health data
     return _getResultType();
   }
 
@@ -121,15 +110,12 @@ class _PantryState extends State<Pantry> {
       ),
     );
 
-    // Add device ID to request
     try {
       final deviceId = await DeviceIdService().getDeviceId();
       request.fields['device_id'] = deviceId;
     } catch (e) {
-      // Device ID error, continue with request
     }
 
-    // Add health profile to request
     try {
       final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
       final healthProfile = {
@@ -147,35 +133,25 @@ class _PantryState extends State<Pantry> {
       var decodedBody = utf8.decode(responseBody.bodyBytes);
       var jsonResponse = jsonDecode(decodedBody);
 
-      // Hiển thị dialog để kiểm tra output (có thể comment lại sau khi test xong)
-      // _showOutputDialog(jsonResponse, response.statusCode);
-
       if (response.statusCode == 200) {
         if (jsonResponse['success'] == true && jsonResponse['ingredients'] != null) {
           var ingredients = jsonResponse['ingredients'] as List;
           List<String> ingredientsList = ingredients.map((e) => e.toString()).toList();
-          // Translate ingredients to Vietnamese using AI
           ingredientsList = await TranslationService().translateIngredients(ingredientsList);
 
-          // Parse enhanced response data
           final healthWarnings = jsonResponse['health_warnings'] as List<dynamic>?;
           final riskSummary = jsonResponse['risk_summary'] as Map<String, dynamic>?;
           final safeIngredients = (jsonResponse['safe_ingredients'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ?? [];
-          // Translate safe ingredients to Vietnamese using AI
           final safeIngredientsTranslated = await TranslationService().translateIngredients(safeIngredients);
 
-          // Check if ingredients contain allergens even if API says safe
-          // This handles cases where API might miss allergens in foreign language text
           final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
           final userAllergens = allergenProvider.allergens;
 
-          // Check each ingredient against user allergens (after translation)
           bool hasHiddenAllergen = false;
           for (var ingredient in ingredientsList) {
             for (var allergen in userAllergens) {
-              // Translate allergen to Vietnamese for matching
               final translatedAllergen = await TranslationService().translateIngredient(allergen);
               if (TranslationService.matchesAllergen(ingredient, translatedAllergen) ||
                   TranslationService.matchesAllergen(ingredient, allergen)) {
@@ -186,20 +162,12 @@ class _PantryState extends State<Pantry> {
             if (hasHiddenAllergen) break;
           }
 
-          // If we found a hidden allergen but API didn't, adjust risk
-          if (hasHiddenAllergen && (healthWarnings == null || healthWarnings.isEmpty)) {
-            // Don't override API's decision
-          }
-
-          // Lưu vào SearchProvider
           setState(() => Provider.of<SearchProvider>(context, listen: false).addSearchValues(ingredientsList));
 
-          // Tính result type dựa trên health_warnings và risk_summary
           AllergenResultType resultType = _calculateResultType(healthWarnings, riskSummary);
 
-          // Navigate to result screen (pop analyzing screen first)
           if (mounted) {
-            Navigator.of(context).pop(); // Close analyzing screen
+            Navigator.of(context).pop();
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => AllergenResultScreen(
@@ -216,7 +184,7 @@ class _PantryState extends State<Pantry> {
           }
         } else {
           if (mounted) {
-            Navigator.of(context).pop(); // Close analyzing screen
+            Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(jsonResponse['error'] ?? 'Không tìm thấy thành phần trong hình ảnh')),
             );
@@ -225,7 +193,7 @@ class _PantryState extends State<Pantry> {
       } else {
         var errorMsg = jsonResponse['error'] ?? 'Lỗi với mã trạng thái: ${response.statusCode}';
         if (mounted) {
-          Navigator.of(context).pop(); // Close analyzing screen
+          Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Lỗi: $errorMsg')),
           );
@@ -233,7 +201,7 @@ class _PantryState extends State<Pantry> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // Close analyzing screen
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi xử lý hình ảnh: $e')),
         );
@@ -244,7 +212,6 @@ class _PantryState extends State<Pantry> {
   @override
   void initState() {
     super.initState();
-    // _speech = stt.SpeechToText();
   }
 
   @override
@@ -265,14 +232,12 @@ class _PantryState extends State<Pantry> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Logo SVG
             SvgPicture.string(
               '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#FFB3C6" stroke="#000000" stroke-width="2"></path><path d="M14.5 9.1c-.3-1.4-1.5-2.6-3-2.6-1.7 0-3.1 1.4-3.1 3.1 0 1.5.9 2.8 2.2 3.1" fill="none" stroke="#000000" stroke-width="2"></path><path d="M9.5 14.9c.3 1.4 1.5 2.6 3 2.6 1.7 0 3.1-1.4 3.1-3.1 0-1.5-.9-2.8-2.2-3.1" fill="none" stroke="#000000" stroke-width="2"></path></svg>''',
               width: 32,
               height: 32,
             ),
             const SizedBox(width: 8),
-            // Text "Safein"
             const Text(
               'Safein',
               style: TextStyle(
@@ -303,7 +268,6 @@ class _PantryState extends State<Pantry> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Hero Section
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
@@ -382,7 +346,6 @@ class _PantryState extends State<Pantry> {
 
               const SizedBox(height: 24),
 
-              // Image Upload Section
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -418,7 +381,6 @@ class _PantryState extends State<Pantry> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // Image Display Area
                     Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
@@ -623,7 +585,6 @@ class _PantryState extends State<Pantry> {
 
               const SizedBox(height: 24),
 
-              // Analyze Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

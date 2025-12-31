@@ -6,7 +6,6 @@ class TranslationService {
   static final TranslationService _instance = TranslationService._internal();
   factory TranslationService() => _instance;
   TranslationService._internal() {
-    // Load cache asynchronously (fire-and-forget)
     _loadCache();
   }
 
@@ -14,7 +13,6 @@ class TranslationService {
   static const String _apiUrl = 'https://api.openai.com/v1/chat/completions';
   static const String _cacheKey = 'translation_cache';
 
-  // Cache for translations to avoid repeated API calls
   Map<String, String> _translationCache = {};
 
   Future<void> _loadCache() async {
@@ -25,7 +23,6 @@ class TranslationService {
         _translationCache = Map<String, String>.from(jsonDecode(cacheJson));
       }
     } catch (e) {
-      // Cache load failed, will use empty cache
     }
   }
 
@@ -35,15 +32,12 @@ class TranslationService {
       final cacheJson = jsonEncode(_translationCache);
       await prefs.setString(_cacheKey, cacheJson);
     } catch (e) {
-      // Cache save failed, continue without caching
     }
   }
 
-  /// Translate ingredients using AI
   Future<List<String>> translateIngredients(List<String> ingredients) async {
     if (ingredients.isEmpty) return ingredients;
 
-    // Check cache first
     final List<String> translated = [];
     final List<String> toTranslate = [];
 
@@ -55,16 +49,13 @@ class TranslationService {
       }
     }
 
-    // If all are cached, return immediately
     if (toTranslate.isEmpty) {
       return translated;
     }
 
-    // Translate remaining ingredients using AI
     try {
       final translatedBatch = await _translateWithAI(toTranslate);
 
-      // Update cache and add to result
       for (int i = 0; i < toTranslate.length; i++) {
         final original = toTranslate[i];
         final translatedText = translatedBatch[i];
@@ -72,21 +63,17 @@ class TranslationService {
         translated.add(translatedText);
       }
 
-      // Save cache
       await _saveCache();
     } catch (e) {
-      // Fallback to original if translation fails
       translated.addAll(toTranslate);
     }
 
     return translated;
   }
 
-  /// Translate a single ingredient using AI
   Future<String> translateIngredient(String ingredient) async {
     if (ingredient.isEmpty) return ingredient;
 
-    // Check cache
     if (_translationCache.containsKey(ingredient)) {
       return _translationCache[ingredient]!;
     }
@@ -95,7 +82,6 @@ class TranslationService {
       final translated = await _translateWithAI([ingredient]);
       final result = translated.isNotEmpty ? translated[0] : ingredient;
 
-      // Cache result
       _translationCache[ingredient] = result;
       await _saveCache();
 
@@ -105,7 +91,6 @@ class TranslationService {
     }
   }
 
-  /// Translate using OpenAI API
   Future<List<String>> _translateWithAI(List<String> ingredients) async {
     final ingredientsText = ingredients.join(', ');
 
@@ -148,18 +133,15 @@ Output: "Sữa, Trứng, Sữa, Không có sữa"''',
       final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
       final translatedText = jsonResponse['choices'][0]['message']['content'] as String;
 
-      // Parse the translated ingredients
       final translatedList = translatedText
           .split(',')
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
 
-      // Ensure we return the same number of items
       if (translatedList.length == ingredients.length) {
         return translatedList;
       } else {
-        // If count doesn't match, try to split differently or return original
         return translatedList.length > 0 ? translatedList : ingredients;
       }
     } else {
@@ -167,47 +149,34 @@ Output: "Sữa, Trứng, Sữa, Không có sữa"''',
     }
   }
 
-  /// Translate medical condition using AI
   Future<String> translateMedicalCondition(String condition) async {
-    // Use the same translation method as ingredients
     return await translateIngredient(condition);
   }
 
-  /// Translate a list of strings (allergens, medical history, etc.) to Vietnamese
   Future<List<String>> translateList(List<String> items) async {
     if (items.isEmpty) return items;
     return await translateIngredients(items);
   }
 
-  /// Translate skin type, health goal, or other single text value to Vietnamese
-  /// Returns original if already in Vietnamese or if translation fails
   Future<String> translateText(String text) async {
     if (text.isEmpty) return text;
 
-    // Check if text contains Vietnamese characters
     final vietnamesePattern = RegExp(r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]', caseSensitive: false);
     if (vietnamesePattern.hasMatch(text)) {
-      // Already contains Vietnamese characters, likely already in Vietnamese
       return text;
     }
 
-    // Try to translate
     return await translateIngredient(text);
   }
 
-  /// Check if an ingredient matches an allergen (for health warning matching)
-  /// This handles multi-language matching
   static bool matchesAllergen(String ingredient, String allergen) {
-    // Normalize for comparison (remove spaces, convert to lowercase)
     final normalize = (String text) => text.toLowerCase().replaceAll(RegExp(r'[\s\-_]+'), '');
 
     final normalizedIngredient = normalize(ingredient);
     final normalizedAllergen = normalize(allergen);
 
-    // Direct match
     if (normalizedIngredient.contains(normalizedAllergen)) return true;
 
-    // Check if allergen is in ingredient (case insensitive, space-insensitive)
     final allergenWords = normalizedAllergen.split(RegExp(r'[\s,]+'));
     for (var word in allergenWords) {
       if (word.isNotEmpty && normalizedIngredient.contains(word)) {
@@ -215,7 +184,6 @@ Output: "Sữa, Trứng, Sữa, Không có sữa"''',
       }
     }
 
-    // Check reverse
     final ingredientWords = normalizedIngredient.split(RegExp(r'[\s,]+'));
     for (var word in ingredientWords) {
       if (word.isNotEmpty && normalizedAllergen.contains(word)) {

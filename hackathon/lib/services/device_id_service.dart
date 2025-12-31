@@ -9,15 +9,11 @@ class DeviceIdService {
 
   String? _cachedDeviceId;
 
-  /// Get or create a unique device ID for this device
-  /// This ID will be consistent across app restarts
   Future<String> getDeviceId() async {
-    // Return cached ID if available
     if (_cachedDeviceId != null) {
       return _cachedDeviceId!;
     }
 
-    // Try to get existing ID from SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     final existingId = prefs.getString(_deviceIdKey);
 
@@ -26,11 +22,9 @@ class DeviceIdService {
       return existingId;
     }
 
-    // Generate new UUID and save it
     const uuid = Uuid();
     final newDeviceId = uuid.v4();
 
-    // Save to SharedPreferences
     await prefs.setString(_deviceIdKey, newDeviceId);
     _cachedDeviceId = newDeviceId;
     

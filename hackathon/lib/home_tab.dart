@@ -20,16 +20,12 @@ class HomeTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 _buildHeader(context),
                 const SizedBox(height: 24),
-                // Summary Cards
                 _buildSummaryCards(),
                 const SizedBox(height: 24),
-                // Check Now Section
                 _buildCheckNowSection(context),
                 const SizedBox(height: 24),
-                // Recent History
                 _buildRecentHistory(),
               ],
             ),
@@ -45,7 +41,6 @@ class HomeTab extends StatelessWidget {
     
     return Row(
       children: [
-        // Logo SAFEIN
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +94,6 @@ class HomeTab extends StatelessWidget {
             ],
           ),
         ),
-        // Right icons
         Row(
           children: [
             GestureDetector(
@@ -251,7 +245,6 @@ class HomeTab extends StatelessWidget {
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate to camera tab or open camera
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (context) => const CameraTab()),
                     );

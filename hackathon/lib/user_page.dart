@@ -84,7 +84,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Hero Section - More Creative and Fun
                   ScaleTransition(
                     scale: _scaleAnimation,
                     child: Container(
@@ -112,7 +111,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                       ),
                       child: Column(
                         children: [
-                          // Animated Avatar with Emoji
                           Stack(
                             children: [
                               Container(
@@ -217,7 +215,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
 
                   const SizedBox(height: 32),
 
-                  // Allergen Profile Section - Centered
                   Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 600),
@@ -238,7 +235,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Header with Emoji
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
@@ -384,7 +380,6 @@ class _UserPageState extends State<UserPage> with SingleTickerProviderStateMixin
                               ],
                             ),
                           const SizedBox(height: 32),
-                          // Medical History Section
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,

@@ -39,7 +39,6 @@ class _ProfileTabState extends State<ProfileTab> {
     _ageController.text = provider.age;
     _weightController.text = provider.weight;
     
-    // Translate skin type, health goal, allergens, and medical history to Vietnamese
     _skinTypeController.text = await _translationService.translateText(provider.skinType);
     _healthGoalController.text = await _translationService.translateText(provider.healthGoal);
     
@@ -53,7 +52,6 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<void> _saveProfile() async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
     
-    // Parse allergens and medical history from comma-separated strings
     final allergens = _allergensController.text
         .split(',')
         .map((e) => e.trim())
@@ -117,13 +115,10 @@ class _ProfileTabState extends State<ProfileTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               _buildHeader(),
               const SizedBox(height: 24),
-              // Your Profiles Section
               _buildYourProfilesSection(profileName, profileAge, profileWeight),
               const SizedBox(height: 24),
-              // Editing Section
               _buildEditingSection(profileName),
             ],
           ),
@@ -135,7 +130,6 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget _buildHeader() {
     return Row(
       children: [
-        // Logo SAFEIN
         Expanded(
           child: Row(
             children: [
@@ -158,7 +152,6 @@ class _ProfileTabState extends State<ProfileTab> {
             ],
           ),
         ),
-        // Right icons
         Row(
           children: [
             Container(
@@ -192,7 +185,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Current Profile Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -245,7 +237,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Add New Profile
         Row(
           children: [
             Expanded(
@@ -269,7 +260,6 @@ class _ProfileTabState extends State<ProfileTab> {
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed: () {
-                // Handle add profile
                 if (_newProfileController.text.isNotEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -341,7 +331,7 @@ class _ProfileTabState extends State<ProfileTab> {
                     onPressed: () {
                       setState(() {
                         _isEditing = false;
-                        _loadProfileData(); // Reset to saved values
+                        _loadProfileData();
                       });
                     },
                     style: TextButton.styleFrom(
@@ -390,7 +380,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ],
         ),
         const SizedBox(height: 16),
-        // Basic Info Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -417,7 +406,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Name field
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -437,7 +425,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Age and Weight fields
               Row(
                 children: [
                   Expanded(
@@ -487,7 +474,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Skin Type Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -539,7 +525,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Health Goal Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -591,7 +576,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Allergens Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -644,7 +628,6 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
         const SizedBox(height: 16),
-        // Medical History Card
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(

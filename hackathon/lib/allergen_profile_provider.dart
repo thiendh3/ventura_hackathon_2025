@@ -38,15 +38,11 @@ class AllergenProfileProvider with ChangeNotifier {
       if (profileJson != null && profileJson.isNotEmpty) {
         final decoded = jsonDecode(profileJson);
         
-        // Handle migration from old format (just a list) to new format (object)
         if (decoded is List) {
-          // Old format: just a list of allergens
           _allergens = decoded.map((e) => e.toString()).toList();
           _medicalHistory = [];
-          // Save in new format for future
           await _saveToPreferences();
         } else if (decoded is Map) {
-          // New format: object with allergy, medical_history, and profile info
           _allergens = (decoded['allergy'] as List<dynamic>?)
                   ?.map((e) => e.toString())
                   .toList() ??

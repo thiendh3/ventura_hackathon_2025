@@ -117,7 +117,6 @@ Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên tron
         _isLoading = false;
       });
 
-      // Check if conversation is complete or should show complete button
       if (_checkIfComplete(response) || userMessage.toLowerCase().contains('done') ||
           userMessage.toLowerCase().contains('save') ||
           userMessage.toLowerCase().contains('yes') ||
@@ -127,7 +126,6 @@ Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên tron
         });
       }
       
-      // Show complete button after a few exchanges (at least 3 assistant messages)
       final assistantMessages = _messages.where((m) => m['role'] == 'assistant').length;
       if (assistantMessages >= 3 && !_showCompleteButton) {
         setState(() {
@@ -159,11 +157,9 @@ Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên tron
   }
 
   Future<void> _extractAndSaveHealthProfile() async {
-    // Use AI to extract all profile information from conversation
     setState(() => _isLoading = true);
     
     try {
-      // Extract all profile info
       final extractionMessages = List<Map<String, String>>.from(_messages);
       extractionMessages.add({
         'role': 'system',
@@ -188,9 +184,7 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
       final response = await _openAIService.chatCompletion(extractionMessages);
       final responseText = response.trim();
       
-      // Try to parse JSON
       String jsonText = responseText;
-      // Remove markdown code blocks if present
       if (jsonText.contains('```')) {
         final start = jsonText.indexOf('{');
         final end = jsonText.lastIndexOf('}');
@@ -212,7 +206,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
         
         List<String> allergens = [];
         if (allergenText.isNotEmpty && allergenText != 'none') {
-          // Split by comma and clean each item, preserving Vietnamese characters
           allergens = allergenText
               .split(',')
               .map((e) => e.trim())
@@ -222,7 +215,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
         
         List<String> medicalHistory = [];
         if (medicalText.isNotEmpty && medicalText != 'none') {
-          // Split by comma and clean each item, preserving Vietnamese characters
           medicalHistory = medicalText
               .split(',')
               .map((e) => e.trim())
@@ -233,7 +225,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
         setState(() => _isLoading = false);
         await _saveHealthProfile(allergens, medicalHistory, name: name, age: age, weight: weight, skinType: skinType, healthGoal: healthGoal);
       } catch (e) {
-        // JSON parsing failed, try fallback extraction
         setState(() => _isLoading = false);
         final allergens = _manualExtractAllergens();
         final medicalHistory = _manualExtractMedicalHistory();
@@ -241,7 +232,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      // If AI extraction fails, try manual extraction as fallback
       final allergens = _manualExtractAllergens();
       final medicalHistory = _manualExtractMedicalHistory();
       await _saveHealthProfile(allergens, medicalHistory);
@@ -249,7 +239,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
   }
 
   List<String> _manualExtractAllergens() {
-    // Fallback manual extraction
     final allergens = <String>[];
     final allergenKeywords = {
       'peanut': ['peanut', 'peanuts', 'groundnut'],
@@ -281,7 +270,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
   }
 
   List<String> _manualExtractMedicalHistory() {
-    // Fallback manual extraction for medical history
     final medicalHistory = <String>[];
     final medicalKeywords = {
       'diabetes': ['diabetes', 'diabetic', 'blood sugar', 'glucose'],
@@ -320,7 +308,6 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
     String healthGoal = '',
   }) async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
-    // Không bắt buộc phải có đầy đủ thông tin, cho phép lưu với bất kỳ thông tin nào có
     final success = await provider.saveProfileInfo(
       allergens: allergens.isNotEmpty ? allergens : null,
       medicalHistory: medicalHistory.isNotEmpty ? medicalHistory : null,
@@ -340,14 +327,11 @@ Trả về CHỈ đối tượng JSON, không có text nào khác.''',
             backgroundColor: Colors.green,
           ),
         );
-        // Navigate based on mode
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted) {
             if (widget.isEditMode) {
-              // If in edit mode, go back to previous screen
               Navigator.of(context).pop();
             } else {
-              // First time setup, go to HomeScreen
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (context) => const HomeScreen()),
               );

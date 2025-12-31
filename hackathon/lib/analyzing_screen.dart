@@ -31,7 +31,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   void initState() {
     super.initState();
 
-    // Rotation animation for AI brain icon
     _rotationController = AnimationController(
       duration: const Duration(seconds: 3),
       vsync: this,
@@ -41,7 +40,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       CurvedAnimation(parent: _rotationController, curve: Curves.linear),
     );
 
-    // Pulse animation
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -51,7 +49,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Wave animation for particles
     _waveController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -61,7 +58,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
       CurvedAnimation(parent: _waveController, curve: Curves.linear),
     );
 
-    // Text animation
     _textController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
@@ -109,7 +105,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Animated AI Brain Icon
                 AnimatedBuilder(
                   animation: _rotationAnimation,
                   builder: (context, child) {
@@ -156,7 +151,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
                 const SizedBox(height: 60),
 
-                // Scanning particles
                 SizedBox(
                   width: 200,
                   height: 100,
@@ -167,7 +161,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
                 const SizedBox(height: 40),
 
-                // Animated text
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 500),
                   transitionBuilder: (child, animation) {
@@ -197,7 +190,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
                 const SizedBox(height: 20),
 
-                // Progress indicator
                 SizedBox(
                   width: 200,
                   child: LinearProgressIndicator(
@@ -212,7 +204,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
 
                 const SizedBox(height: 40),
 
-                // Info card
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 40),
                   padding: const EdgeInsets.all(20),
@@ -271,7 +262,6 @@ class ParticlePainter extends CustomPainter {
     final centerX = size.width / 2;
     final centerY = size.height / 2;
 
-    // Draw scanning particles
     for (int i = 0; i < 8; i++) {
       final angle = (waveValue + i * math.pi / 4) % (2 * math.pi);
       final radius = 30 + 20 * math.sin(waveValue + i);

@@ -33,13 +33,11 @@ class _CameraTabState extends State<CameraTab> {
       setState(() {
         _selectedImages.add(image);
       });
-      // Auto analyze when image is selected
       _analyzeIngredients(image);
     }
   }
 
   Future<void> _analyzeIngredients(XFile image) async {
-    // Show analyzing screen
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const AnalyzingScreen(),
@@ -47,7 +45,6 @@ class _CameraTabState extends State<CameraTab> {
       ),
     );
 
-    // Wait a bit for animation, then analyze
     await Future.delayed(const Duration(milliseconds: 500));
     await detectIngredientByImage(image);
   }
@@ -105,7 +102,6 @@ class _CameraTabState extends State<CameraTab> {
       final deviceId = await DeviceIdService().getDeviceId();
       request.fields['device_id'] = deviceId;
     } catch (e) {
-      // Device ID error, continue with request
     }
 
     try {
@@ -138,6 +134,23 @@ class _CameraTabState extends State<CameraTab> {
               .toList() ?? [];
           final safeIngredientsTranslated = await TranslationService().translateIngredients(safeIngredients);
 
+          final mappings = jsonResponse['mappings'] as List<dynamic>?;
+
+          List<Map<String, dynamic>> allergicMappings = [];
+          if (mappings != null && healthWarnings != null) {
+            final allergicIngredientNames = healthWarnings
+                .map((w) => w['ingredient']?.toString().toLowerCase().trim() ?? '')
+                .where((name) => name.isNotEmpty)
+                .toSet();
+
+            for (var mapping in mappings) {
+              final label = mapping['label']?.toString().toLowerCase().trim() ?? '';
+              if (label.isNotEmpty && allergicIngredientNames.contains(label)) {
+                allergicMappings.add(Map<String, dynamic>.from(mapping));
+              }
+            }
+          }
+
           final allergenProvider = Provider.of<AllergenProfileProvider>(context, listen: false);
           final userAllergens = allergenProvider.allergens;
 
@@ -168,6 +181,7 @@ class _CameraTabState extends State<CameraTab> {
                   riskSummary: riskSummary,
                   safeIngredients: safeIngredientsTranslated,
                   allIngredients: ingredientsList,
+                  ingredientMappings: allergicMappings.isNotEmpty ? allergicMappings : null,
                 ),
               ),
             );
@@ -232,7 +246,6 @@ class _CameraTabState extends State<CameraTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Hero Section
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
@@ -300,7 +313,6 @@ class _CameraTabState extends State<CameraTab> {
                 ),
               ),
               const SizedBox(height: 24),
-              // Image Upload Section
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
