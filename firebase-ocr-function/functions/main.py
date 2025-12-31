@@ -22,19 +22,28 @@ firebase_app = initialize_app(options={
 
 # --- LAZY LOADING CHO CÁC THƯ VIỆN NẶNG ---
 # Sử dụng lazy loading để tối ưu cold start
-_embedder = None
 _vision_client = None
 _openai_client = None
 
-def get_embedder():
-    """Lazy load SentenceTransformer model"""
-    global _embedder
-    if _embedder is None:
-        from sentence_transformers import SentenceTransformer
-        logging.info("⏳ Đang tải model Semantic...")
-        _embedder = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-        logging.info("✅ Đã tải model xong!")
-    return _embedder
+def get_openai_embeddings(texts: list[str]) -> list[list[float]]:
+    """
+    Get embeddings from OpenAI API instead of local model
+    Args:
+        texts: List of text strings to embed
+    Returns:
+        List of embedding vectors
+    """
+    client = get_openai_client()
+    
+    try:
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=texts
+        )
+        return [item.embedding for item in response.data]
+    except Exception as e:
+        logging.error(f"Error getting OpenAI embeddings: {e}")
+        raise
 
 def get_vision_client():
     """Lazy load Google Vision client"""
@@ -261,20 +270,19 @@ Phân tích danh sách THÀNH PHẦN thực phẩm và xác định thành phầ
 # ---------------------------------------------------------
 def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, threshold: float = 0.55) -> list:
     """
-    Sử dụng Vector Search để tìm vị trí của từng nguyên liệu trong ảnh
+    Sử dụng OpenAI Embeddings API để tìm vị trí của từng nguyên liệu trong ảnh
     """
-    from sentence_transformers import util
-    import torch
+    import numpy as np
+    from numpy.linalg import norm
     
-    embedder = get_embedder()
     results = []
-
+    
     # Tạo Corpus từ OCR data
     corpus_texts = []
     corpus_indices = []
     
     clean_indices = [i for i, w in enumerate(ocr_word_list) if not w['is_noise']]
-    max_window_size = 5
+    max_window_size = 3  # Reduced from 5 for better performance
     
     for window in range(1, max_window_size + 1):
         for i in range(len(clean_indices) - window + 1):
@@ -282,24 +290,37 @@ def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, thresho
             text_segment = " ".join([ocr_word_list[idx]['text'] for idx in current_indices])
             corpus_texts.append(text_segment)
             corpus_indices.append(current_indices)
-
+    
     if not corpus_texts:
         return []
-
-    # Encode corpus
-    corpus_embeddings = embedder.encode(corpus_texts, convert_to_tensor=True)
-
-    # Tìm từng nguyên liệu
-    for phrase in target_phrases:
-        query_embedding = embedder.encode(phrase, convert_to_tensor=True)
-        cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
+    
+    # Batch encode corpus và queries với OpenAI
+    all_texts = corpus_texts + target_phrases
+    all_embeddings = get_openai_embeddings(all_texts)
+    
+    corpus_embeddings = np.array(all_embeddings[:len(corpus_texts)])
+    query_embeddings = np.array(all_embeddings[len(corpus_texts):])
+    
+    # Batch cosine similarity calculation
+    # Normalize embeddings
+    corpus_norms = norm(corpus_embeddings, axis=1, keepdims=True)
+    query_norms = norm(query_embeddings, axis=1, keepdims=True)
+    
+    normalized_corpus = corpus_embeddings / (corpus_norms + 1e-8)
+    normalized_queries = query_embeddings / (query_norms + 1e-8)
+    
+    # Compute all similarities at once
+    all_similarities = np.dot(normalized_queries, normalized_corpus.T)
+    
+    # Process each query
+    for i, phrase in enumerate(target_phrases):
+        similarities = all_similarities[i]
+        best_idx = np.argmax(similarities)
+        best_score = float(similarities[best_idx])
         
-        best_score_idx = torch.argmax(cos_scores).item()
-        best_score = cos_scores[best_score_idx].item()
-
         if best_score >= threshold:
-            matched_text = corpus_texts[best_score_idx]
-            matched_raw_indices = corpus_indices[best_score_idx]
+            matched_text = corpus_texts[best_idx]
+            matched_raw_indices = corpus_indices[best_idx]
             
             # Lấy bounding box
             matched_boxes = [ocr_word_list[idx]['box'] for idx in matched_raw_indices]
@@ -320,7 +341,7 @@ def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, thresho
                 "confidence": round(best_score, 3),
                 "bounding_box": final_box
             })
-
+    
     return results
 
 
@@ -332,9 +353,10 @@ def find_coordinates_semantic(target_phrases: list, ocr_word_list: list, thresho
         cors_origins=["*"],  # Cho phép tất cả origins, có thể restrict lại
         cors_methods=["GET", "POST"]
     ),
-    memory=options.MemoryOption.GB_2,  # 2GB RAM cho model ML
+    memory=options.MemoryOption.GB_1,  # Reduced from GB_2 since no local model
     timeout_sec=300,  # 5 phút timeout
-    region="asia-southeast1"  # Region Singapore
+    region="asia-southeast1",  # Region Singapore
+    min_instances=1  # Keep 1 instance warm to eliminate cold start
 )
 def smart_ocr_rag(req: https_fn.Request) -> https_fn.Response:
     """
