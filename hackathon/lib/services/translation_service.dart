@@ -173,6 +173,28 @@ Output: "Sữa, Trứng, Sữa, Không có sữa"''',
     return await translateIngredient(condition);
   }
 
+  /// Translate a list of strings (allergens, medical history, etc.) to Vietnamese
+  Future<List<String>> translateList(List<String> items) async {
+    if (items.isEmpty) return items;
+    return await translateIngredients(items);
+  }
+
+  /// Translate skin type, health goal, or other single text value to Vietnamese
+  /// Returns original if already in Vietnamese or if translation fails
+  Future<String> translateText(String text) async {
+    if (text.isEmpty) return text;
+
+    // Check if text contains Vietnamese characters
+    final vietnamesePattern = RegExp(r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]', caseSensitive: false);
+    if (vietnamesePattern.hasMatch(text)) {
+      // Already contains Vietnamese characters, likely already in Vietnamese
+      return text;
+    }
+
+    // Try to translate
+    return await translateIngredient(text);
+  }
+
   /// Check if an ingredient matches an allergen (for health warning matching)
   /// This handles multi-language matching
   static bool matchesAllergen(String ingredient, String allergen) {

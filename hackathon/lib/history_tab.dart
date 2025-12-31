@@ -92,7 +92,13 @@ class HistoryItem {
 
   String get formattedDate {
     final dateTime = DateTime.fromMillisecondsSinceEpoch(createdAt);
-    return DateFormat('dd MMM yyyy', 'vi').format(dateTime);
+    // Format manually to avoid locale initialization issue
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = months[dateTime.month - 1];
+    final year = dateTime.year.toString();
+    return '$day $month $year';
   }
 }
 
@@ -109,7 +115,7 @@ class _HistoryTabState extends State<HistoryTab> {
   List<HistoryItem> _historyItems = [];
 
   // Mock device_id for testing
-  static const String _mockDeviceId = 'unique-device-id-123';
+  static const String _mockDeviceId = 'user123_device456';
 
   @override
   void initState() {
