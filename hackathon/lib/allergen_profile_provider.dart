@@ -6,12 +6,22 @@ class AllergenProfileProvider with ChangeNotifier {
   static const String _profileKey = 'user_allergen_profile';
   List<String> _allergens = [];
   List<String> _medicalHistory = [];
+  String _name = '';
+  String _age = '';
+  String _weight = '';
+  String _skinType = '';
+  String _healthGoal = '';
   bool _isLoading = false;
 
   List<String> get allergens => _allergens;
   List<String> get medicalHistory => _medicalHistory;
+  String get name => _name;
+  String get age => _age;
+  String get weight => _weight;
+  String get skinType => _skinType;
+  String get healthGoal => _healthGoal;
   bool get isLoading => _isLoading;
-  bool get hasProfile => _allergens.isNotEmpty || _medicalHistory.isNotEmpty;
+  bool get hasProfile => _allergens.isNotEmpty || _medicalHistory.isNotEmpty || _name.isNotEmpty;
 
   AllergenProfileProvider() {
     loadProfile();
@@ -36,7 +46,7 @@ class AllergenProfileProvider with ChangeNotifier {
           // Save in new format for future
           await _saveToPreferences();
         } else if (decoded is Map) {
-          // New format: object with allergy and medical_history
+          // New format: object with allergy, medical_history, and profile info
           _allergens = (decoded['allergy'] as List<dynamic>?)
                   ?.map((e) => e.toString())
                   .toList() ??
@@ -45,13 +55,28 @@ class AllergenProfileProvider with ChangeNotifier {
                   ?.map((e) => e.toString())
                   .toList() ??
               [];
+          _name = decoded['name']?.toString() ?? '';
+          _age = decoded['age']?.toString() ?? '';
+          _weight = decoded['weight']?.toString() ?? '';
+          _skinType = decoded['skin_type']?.toString() ?? '';
+          _healthGoal = decoded['health_goal']?.toString() ?? '';
         } else {
           _allergens = [];
           _medicalHistory = [];
+          _name = '';
+          _age = '';
+          _weight = '';
+          _skinType = '';
+          _healthGoal = '';
         }
       } else {
         _allergens = [];
         _medicalHistory = [];
+        _name = '';
+        _age = '';
+        _weight = '';
+        _skinType = '';
+        _healthGoal = '';
       }
     } catch (e) {
       _allergens = [];
@@ -68,6 +93,11 @@ class AllergenProfileProvider with ChangeNotifier {
       final profileData = {
         'allergy': _allergens,
         'medical_history': _medicalHistory,
+        'name': _name,
+        'age': _age,
+        'weight': _weight,
+        'skin_type': _skinType,
+        'health_goal': _healthGoal,
       };
       final profileJson = jsonEncode(profileData);
       await prefs.setString(_profileKey, profileJson);
@@ -79,6 +109,31 @@ class AllergenProfileProvider with ChangeNotifier {
     try {
       _allergens = allergens;
       _medicalHistory = medicalHistory;
+      await _saveToPreferences();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> saveProfileInfo({
+    String? name,
+    String? age,
+    String? weight,
+    String? skinType,
+    String? healthGoal,
+    List<String>? allergens,
+    List<String>? medicalHistory,
+  }) async {
+    try {
+      if (name != null) _name = name;
+      if (age != null) _age = age;
+      if (weight != null) _weight = weight;
+      if (skinType != null) _skinType = skinType;
+      if (healthGoal != null) _healthGoal = healthGoal;
+      if (allergens != null) _allergens = allergens;
+      if (medicalHistory != null) _medicalHistory = medicalHistory;
       await _saveToPreferences();
       notifyListeners();
       return true;
@@ -105,6 +160,11 @@ class AllergenProfileProvider with ChangeNotifier {
       await prefs.remove(_profileKey);
       _allergens = [];
       _medicalHistory = [];
+      _name = '';
+      _age = '';
+      _weight = '';
+      _skinType = '';
+      _healthGoal = '';
       notifyListeners();
     } catch (e) {
     }

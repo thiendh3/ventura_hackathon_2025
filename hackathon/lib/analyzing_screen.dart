@@ -99,8 +99,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFFF8F9FA),
-              const Color(0xFFE9ECEF),
+              const Color(0xFFFFF0F5),
+              Colors.white,
             ],
           ),
         ),
@@ -124,13 +124,13 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              const Color(0xFFB3FFD9),
-                              const Color(0xFFD1FFE5),
+                              const Color(0xFFFFB3C6),
+                              const Color(0xFFFFE0E6),
                             ],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFB3FFD9).withOpacity(0.3),
+                              color: const Color(0xFFFFB3C6).withOpacity(0.3),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
@@ -144,7 +144,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                               child: const Icon(
                                 Icons.psychology_rounded,
                                 size: 60,
-                                color: Color(0xFF4ECDC4),
+                                color: Color(0xFFFFB3C6),
                               ),
                             );
                           },
@@ -203,7 +203,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   child: LinearProgressIndicator(
                     backgroundColor: Colors.grey.shade200,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      const Color(0xFFB3FFD9),
+                      const Color(0xFFFFB3C6),
                     ),
                     minHeight: 4,
                     borderRadius: BorderRadius.circular(2),
@@ -231,7 +231,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                     children: [
                       Icon(
                         Icons.shield_outlined,
-                        color: const Color(0xFF4ECDC4),
+                        color: const Color(0xFFFFB3C6),
                         size: 24,
                       ),
                       const SizedBox(width: 12),
@@ -266,7 +266,7 @@ class ParticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = const Color(0xFFB3FFD9);
+      ..color = const Color(0xFFFFB3C6);
 
     final centerX = size.width / 2;
     final centerY = size.height / 2;
@@ -281,7 +281,7 @@ class ParticlePainter extends CustomPainter {
       canvas.drawCircle(
         Offset(x, y),
         4,
-        paint..color = const Color(0xFFB3FFD9).withOpacity(0.6 - i * 0.05),
+        paint..color = const Color(0xFFFFB3C6).withOpacity(0.6 - i * 0.05),
       );
     }
   }

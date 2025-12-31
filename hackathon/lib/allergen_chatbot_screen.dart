@@ -3,10 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
+import 'dart:convert';
 
 import 'allergen_profile_provider.dart';
 import 'services/openai_service.dart';
-import 'pantry.dart';
+import 'main.dart';
 
 class AllergenChatbotScreen extends StatefulWidget {
   final bool isEditMode;
@@ -53,15 +54,21 @@ class _AllergenChatbotScreenState extends State<AllergenChatbotScreen>
   void _initializeChat() {
     final systemPrompt = {
       'role': 'system',
-      'content': '''Bạn là một chatbot thu thập hồ sơ sức khỏe. Nhiệm vụ của bạn là thu thập hai loại thông tin từ người dùng:
-1. Dị ứng thực phẩm (ví dụ: đậu phộng, sữa, trứng, hải sản)
-2. Tiền sử bệnh/tình trạng sức khỏe (ví dụ: tiểu đường, cao huyết áp, bệnh tim)
+      'content': '''Bạn là một chatbot thân thiện thu thập hồ sơ sức khỏe. Nhiệm vụ của bạn là thu thập các thông tin sau từ người dùng (TẤT CẢ ĐỀU TÙY CHỌN - người dùng có thể bỏ qua bất kỳ câu hỏi nào):
 
-Hỏi về dị ứng thực phẩm TRƯỚC. Sau khi thu thập thông tin dị ứng, mới hỏi về tiền sử bệnh.
+1. Tên (ví dụ: Thien, Nam, Linh)
+2. Tuổi (ví dụ: 24, 30)
+3. Cân nặng (ví dụ: 50 kg, 60kg)
+4. Loại da (ví dụ: da dầu, da khô, da hỗn hợp, da nhạy cảm)
+5. Mục tiêu sức khỏe (ví dụ: giảm cân, tăng cường sức khỏe, chăm sóc da, phòng ngừa dị ứng)
+6. Dị ứng thực phẩm (ví dụ: đậu phộng, sữa, trứng, hải sản)
+7. Tiền sử bệnh/tình trạng sức khỏe (ví dụ: tiểu đường, cao huyết áp, bệnh tim)
+
+Hỏi từng câu hỏi một cách tự nhiên và thân thiện. Nếu người dùng không muốn trả lời, hãy tôn trọng và chuyển sang câu hỏi tiếp theo.
 Hỏi từng câu hỏi một, đợi câu trả lời trước khi hỏi câu tiếp theo.
-Nếu người dùng không chắc chắn, hãy hỏi thêm các câu hỏi hướng dẫn để giúp họ xác định thông tin.
-Khi bạn đã thu thập đủ thông tin về CẢ dị ứng và tiền sử bệnh, hãy tóm tắt cả hai danh sách và xác nhận với người dùng bằng cách hỏi "Bạn có muốn lưu thông tin này không?" hoặc tương tự.
-Trả lời CHỈ bằng tiếng Việt.''',
+Nếu người dùng không chắc chắn hoặc không muốn cung cấp thông tin, hãy tôn trọng và chuyển sang câu hỏi khác.
+Khi bạn đã hỏi xong tất cả các câu hỏi (hoặc người dùng muốn kết thúc), hãy tóm tắt thông tin đã thu thập được và xác nhận với người dùng bằng cách hỏi "Bạn có muốn lưu thông tin này không?" hoặc tương tự.
+Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên trong giao tiếp.''',
     };
 
     _messages.add(systemPrompt);
@@ -141,70 +148,83 @@ Trả lời CHỈ bằng tiếng Việt.''',
   }
 
   Future<void> _extractAndSaveHealthProfile() async {
-    // Use AI to extract both allergens and medical history from conversation
+    // Use AI to extract all profile information from conversation
     setState(() => _isLoading = true);
     
     try {
-      // Extract allergens
-      final allergenExtractionMessages = List<Map<String, String>>.from(_messages);
-      allergenExtractionMessages.add({
+      // Extract all profile info
+      final extractionMessages = List<Map<String, String>>.from(_messages);
+      extractionMessages.add({
         'role': 'system',
-        'content': '''Based on the conversation above, extract a list of food allergens mentioned by the user.
-Return ONLY a comma-separated list of allergens in English (e.g., "peanuts, milk, eggs").
-If no allergens were mentioned, return "none".
-Do not include any other text, just the list or "none".''',
+        'content': '''Based on the conversation above, extract the following information from the user's responses. Return ONLY a JSON object with these exact keys (use empty string "" if not mentioned):
+{
+  "name": "user's name",
+  "age": "user's age (just the number)",
+  "weight": "user's weight (just the number with or without kg)",
+  "skin_type": "skin type (e.g., oily, dry, combination, sensitive)",
+  "health_goal": "health goal",
+  "allergens": "comma-separated list of food allergens in English",
+  "medical_history": "comma-separated list of medical conditions in English"
+}
+Return ONLY the JSON object, no other text.''',
       });
-      allergenExtractionMessages.add({
+      extractionMessages.add({
         'role': 'user',
-        'content': 'Extract the list of allergens from our conversation.',
+        'content': 'Extract all profile information from our conversation as JSON.',
       });
 
-      final allergenResponse = await _openAIService.chatCompletion(allergenExtractionMessages);
-      final allergenText = allergenResponse.trim().toLowerCase();
+      final response = await _openAIService.chatCompletion(extractionMessages);
+      final responseText = response.trim();
       
-      List<String> allergens = [];
-      if (allergenText != 'none' && allergenText.isNotEmpty) {
-        allergens = allergenText
-            .replaceAll(RegExp(r'[^\w\s,]+'), '')
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty && e != 'none')
-            .toList();
+      // Try to parse JSON
+      String jsonText = responseText;
+      // Remove markdown code blocks if present
+      if (jsonText.contains('```')) {
+        final start = jsonText.indexOf('{');
+        final end = jsonText.lastIndexOf('}');
+        if (start != -1 && end != -1) {
+          jsonText = jsonText.substring(start, end + 1);
+        }
       }
-
-      // Extract medical history
-      final medicalExtractionMessages = List<Map<String, String>>.from(_messages);
-      medicalExtractionMessages.add({
-        'role': 'system',
-        'content': '''Based on the conversation above, extract a list of medical conditions or health issues mentioned by the user (e.g., diabetes, hypertension, heart disease).
-Return ONLY a comma-separated list of medical conditions in English.
-If no medical conditions were mentioned, return "none".
-Do not include any other text, just the list or "none".''',
-      });
-      medicalExtractionMessages.add({
-        'role': 'user',
-        'content': 'Extract the list of medical conditions from our conversation.',
-      });
-
-      final medicalResponse = await _openAIService.chatCompletion(medicalExtractionMessages);
-      final medicalText = medicalResponse.trim().toLowerCase();
       
-      List<String> medicalHistory = [];
-      if (medicalText != 'none' && medicalText.isNotEmpty) {
-        medicalHistory = medicalText
-            .replaceAll(RegExp(r'[^\w\s,]+'), '')
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty && e != 'none')
-            .toList();
-      }
-
-      setState(() => _isLoading = false);
-
-      // If nothing extracted, show dialog
-      if (allergens.isEmpty && medicalHistory.isEmpty) {
-        _showHealthProfileInputDialog();
-      } else {
+      try {
+        final extracted = jsonDecode(jsonText) as Map<String, dynamic>;
+        
+        final name = extracted['name']?.toString().trim() ?? '';
+        final age = extracted['age']?.toString().trim() ?? '';
+        final weight = extracted['weight']?.toString().trim() ?? '';
+        final skinType = extracted['skin_type']?.toString().trim() ?? '';
+        final healthGoal = extracted['health_goal']?.toString().trim() ?? '';
+        final allergenText = extracted['allergens']?.toString().trim().toLowerCase() ?? '';
+        final medicalText = extracted['medical_history']?.toString().trim().toLowerCase() ?? '';
+        
+        List<String> allergens = [];
+        if (allergenText.isNotEmpty && allergenText != 'none') {
+          allergens = allergenText
+              .replaceAll(RegExp(r'[^\w\s,]+'), '')
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty && e != 'none')
+              .toList();
+        }
+        
+        List<String> medicalHistory = [];
+        if (medicalText.isNotEmpty && medicalText != 'none') {
+          medicalHistory = medicalText
+              .replaceAll(RegExp(r'[^\w\s,]+'), '')
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty && e != 'none')
+              .toList();
+        }
+        
+        setState(() => _isLoading = false);
+        await _saveHealthProfile(allergens, medicalHistory, name: name, age: age, weight: weight, skinType: skinType, healthGoal: healthGoal);
+      } catch (e) {
+        // JSON parsing failed, try fallback extraction
+        setState(() => _isLoading = false);
+        final allergens = _manualExtractAllergens();
+        final medicalHistory = _manualExtractMedicalHistory();
         await _saveHealthProfile(allergens, medicalHistory);
       }
     } catch (e) {
@@ -212,11 +232,7 @@ Do not include any other text, just the list or "none".''',
       // If AI extraction fails, try manual extraction as fallback
       final allergens = _manualExtractAllergens();
       final medicalHistory = _manualExtractMedicalHistory();
-      if (allergens.isEmpty && medicalHistory.isEmpty) {
-        _showHealthProfileInputDialog();
-      } else {
-        await _saveHealthProfile(allergens, medicalHistory);
-      }
+      await _saveHealthProfile(allergens, medicalHistory);
     }
   }
 
@@ -299,8 +315,8 @@ Do not include any other text, just the list or "none".''',
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFFB3FFD9),
-                Color(0xFFD1FFE5),
+                Color(0xFFFFB3C6),
+                Color(0xFFFFE0E6),
               ],
             ),
             borderRadius: BorderRadius.circular(24),
@@ -320,7 +336,7 @@ Do not include any other text, just the list or "none".''',
                       ),
                       child: const Icon(
                         Icons.health_and_safety_rounded,
-                        color: Color(0xFF4ECDC4),
+                        color: Color(0xFFFFB3C6),
                         size: 24,
                       ),
                     ),
@@ -467,7 +483,7 @@ Do not include any other text, just the list or "none".''',
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4ECDC4),
+                        backgroundColor: const Color(0xFFFFB3C6),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -493,9 +509,25 @@ Do not include any other text, just the list or "none".''',
     );
   }
 
-  Future<void> _saveHealthProfile(List<String> allergens, List<String> medicalHistory) async {
+  Future<void> _saveHealthProfile(
+    List<String> allergens,
+    List<String> medicalHistory, {
+    String name = '',
+    String age = '',
+    String weight = '',
+    String skinType = '',
+    String healthGoal = '',
+  }) async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
-    final success = await provider.saveProfile(allergens, medicalHistory);
+    final success = await provider.saveProfileInfo(
+      allergens: allergens,
+      medicalHistory: medicalHistory,
+      name: name.isNotEmpty ? name : null,
+      age: age.isNotEmpty ? age : null,
+      weight: weight.isNotEmpty ? weight : null,
+      skinType: skinType.isNotEmpty ? skinType : null,
+      healthGoal: healthGoal.isNotEmpty ? healthGoal : null,
+    );
 
     if (mounted) {
       if (success) {
@@ -513,9 +545,9 @@ Do not include any other text, just the list or "none".''',
               // If in edit mode, go back to previous screen
               Navigator.of(context).pop();
             } else {
-              // First time setup, go to pantry
+              // First time setup, go to HomeScreen
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const Pantry()),
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
               );
             }
           }
@@ -555,13 +587,13 @@ Do not include any other text, just the list or "none".''',
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0xFFB3FFD9).withOpacity(0.3),
+                color: const Color(0xFFFFB3C6).withOpacity(0.3),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.psychology_rounded,
                 size: 20,
-                color: Color(0xFF4ECDC4),
+                color: Color(0xFFFFB3C6),
               ),
             ),
             const SizedBox(width: 8),
@@ -571,9 +603,20 @@ Do not include any other text, just the list or "none".''',
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
-                    ? const Color(0xFF4ECDC4)
-                    : const Color(0xFFB3FFD9).withOpacity(0.3),
+                    ? const Color(0xFFFFB3C6)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(20),
+                border: isUser ? null : Border.all(
+                  color: const Color(0xFFFFB3C6).withOpacity(0.3),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Text(
                 message['content'] ?? '',
@@ -592,7 +635,7 @@ Do not include any other text, just the list or "none".''',
               width: 32,
               height: 32,
               decoration: const BoxDecoration(
-                color: Color(0xFF4ECDC4),
+                color: Color(0xFFFFB3C6),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -641,7 +684,7 @@ Do not include any other text, just the list or "none".''',
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFF8F9FA),
+              Color(0xFFFFF0F5),
               Colors.white,
             ],
           ),
@@ -672,18 +715,18 @@ Do not include any other text, just the list or "none".''',
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFB3FFD9).withOpacity(0.3),
+                                color: const Color(0xFFFFB3C6).withOpacity(0.3),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
                                 Icons.psychology_rounded,
                                 size: 20,
-                                color: Color(0xFF4ECDC4),
+                                color: Color(0xFFFFB3C6),
                               ),
                             ),
                             const SizedBox(width: 8),
                             const SpinKitPouringHourGlass(
-                              color: Color(0xFF4ECDC4),
+                              color: Color(0xFFFFB3C6),
                               size: 30,
                             ),
                           ],
@@ -712,7 +755,7 @@ Do not include any other text, just the list or "none".''',
                         child: TextField(
                           controller: _messageController,
                           decoration: InputDecoration(
-                            hintText: 'Type your answer...',
+                            hintText: 'Nhập câu trả lời của bạn...',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide(
@@ -728,7 +771,7 @@ Do not include any other text, just the list or "none".''',
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: const BorderSide(
-                                color: Color(0xFF4ECDC4),
+                                color: Color(0xFFFFB3C6),
                                 width: 2,
                               ),
                             ),
@@ -748,7 +791,7 @@ Do not include any other text, just the list or "none".''',
                         decoration: BoxDecoration(
                           color: _isLoading || _isComplete
                               ? Colors.grey
-                              : const Color(0xFF4ECDC4),
+                              : const Color(0xFFFFB3C6),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
