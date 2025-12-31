@@ -26,6 +26,7 @@ class _AllergenChatbotScreenState extends State<AllergenChatbotScreen>
   final List<Map<String, String>> _messages = [];
   bool _isLoading = false;
   bool _isComplete = false;
+  bool _showCompleteButton = false;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -116,12 +117,22 @@ Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên tron
         _isLoading = false;
       });
 
-      // Check if conversation is complete
+      // Check if conversation is complete or should show complete button
       if (_checkIfComplete(response) || userMessage.toLowerCase().contains('done') ||
           userMessage.toLowerCase().contains('save') ||
           userMessage.toLowerCase().contains('yes') ||
           userMessage.toLowerCase().contains('ok')) {
-        _extractAndSaveHealthProfile();
+        setState(() {
+          _showCompleteButton = true;
+        });
+      }
+      
+      // Show complete button after a few exchanges (at least 3 assistant messages)
+      final assistantMessages = _messages.where((m) => m['role'] == 'assistant').length;
+      if (assistantMessages >= 3 && !_showCompleteButton) {
+        setState(() {
+          _showCompleteButton = true;
+        });
       }
 
       _scrollToBottom();
@@ -156,21 +167,22 @@ Trả lời CHỈ bằng tiếng Việt. Hãy thân thiện và tự nhiên tron
       final extractionMessages = List<Map<String, String>>.from(_messages);
       extractionMessages.add({
         'role': 'system',
-        'content': '''Based on the conversation above, extract the following information from the user's responses. Return ONLY a JSON object with these exact keys (use empty string "" if not mentioned):
+        'content': '''Dựa trên cuộc trò chuyện ở trên, hãy trích xuất thông tin sau từ câu trả lời của người dùng. Trả về CHỈ một đối tượng JSON với các key chính xác sau (sử dụng chuỗi rỗng "" nếu không được đề cập):
 {
-  "name": "user's name",
-  "age": "user's age (just the number)",
-  "weight": "user's weight (just the number with or without kg)",
-  "skin_type": "skin type (e.g., oily, dry, combination, sensitive)",
-  "health_goal": "health goal",
-  "allergens": "comma-separated list of food allergens in English",
-  "medical_history": "comma-separated list of medical conditions in English"
+  "name": "tên người dùng",
+  "age": "tuổi người dùng (chỉ số)",
+  "weight": "cân nặng người dùng (chỉ số, có hoặc không có kg)",
+  "skin_type": "loại da (ví dụ: da dầu, da khô, da hỗn hợp, da nhạy cảm) - GIỮ NGUYÊN tiếng Việt nếu người dùng nói tiếng Việt",
+  "health_goal": "mục tiêu sức khỏe - GIỮ NGUYÊN tiếng Việt nếu người dùng nói tiếng Việt",
+  "allergens": "danh sách dị ứng thực phẩm phân cách bằng dấu phẩy - GIỮ NGUYÊN tiếng Việt nếu người dùng nói tiếng Việt",
+  "medical_history": "danh sách tiền sử bệnh/tình trạng sức khỏe phân cách bằng dấu phẩy - GIỮ NGUYÊN tiếng Việt nếu người dùng nói tiếng Việt"
 }
-Return ONLY the JSON object, no other text.''',
+QUAN TRỌNG: Giữ nguyên ngôn ngữ mà người dùng sử dụng (tiếng Việt). Nếu người dùng nói tiếng Việt, trả về bằng tiếng Việt. Nếu người dùng nói tiếng Anh, dịch sang tiếng Việt.
+Trả về CHỈ đối tượng JSON, không có text nào khác.''',
       });
       extractionMessages.add({
         'role': 'user',
-        'content': 'Extract all profile information from our conversation as JSON.',
+        'content': 'Trích xuất tất cả thông tin hồ sơ từ cuộc trò chuyện của chúng ta dưới dạng JSON.',
       });
 
       final response = await _openAIService.chatCompletion(extractionMessages);
@@ -200,8 +212,8 @@ Return ONLY the JSON object, no other text.''',
         
         List<String> allergens = [];
         if (allergenText.isNotEmpty && allergenText != 'none') {
+          // Split by comma and clean each item, preserving Vietnamese characters
           allergens = allergenText
-              .replaceAll(RegExp(r'[^\w\s,]+'), '')
               .split(',')
               .map((e) => e.trim())
               .where((e) => e.isNotEmpty && e != 'none')
@@ -210,8 +222,8 @@ Return ONLY the JSON object, no other text.''',
         
         List<String> medicalHistory = [];
         if (medicalText.isNotEmpty && medicalText != 'none') {
+          // Split by comma and clean each item, preserving Vietnamese characters
           medicalHistory = medicalText
-              .replaceAll(RegExp(r'[^\w\s,]+'), '')
               .split(',')
               .map((e) => e.trim())
               .where((e) => e.isNotEmpty && e != 'none')
@@ -297,217 +309,6 @@ Return ONLY the JSON object, no other text.''',
     return medicalHistory;
   }
 
-  void _showHealthProfileInputDialog() {
-    final allergenController = TextEditingController();
-    final medicalHistoryController = TextEditingController();
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFB3C6),
-                Color(0xFFFFE0E6),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.health_and_safety_rounded,
-                        color: Color(0xFFFFB3C6),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Nhập hồ sơ sức khỏe',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2C3E50),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                // Allergens field
-                const Text(
-                  'Dị ứng thực phẩm',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2C3E50),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: allergenController,
-                    decoration: InputDecoration(
-                      hintText: 'Ví dụ: đậu phộng, sữa, trứng (phân cách bằng dấu phẩy)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.all(16),
-                    ),
-                    maxLines: 2,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Medical History field
-                const Text(
-                  'Tiền sử bệnh',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2C3E50),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: medicalHistoryController,
-                    decoration: InputDecoration(
-                      hintText: 'Ví dụ: tiểu đường, cao huyết áp (phân cách bằng dấu phẩy)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.all(16),
-                    ),
-                    maxLines: 2,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Hồ sơ sức khỏe chưa được lưu. Bạn có thể thiết lập sau từ hồ sơ của mình.'),
-                            backgroundColor: Colors.orange,
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      ),
-                      child: const Text(
-                        'Hủy',
-                        style: TextStyle(
-                          color: Color(0xFF5A6C7D),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        final allergens = allergenController.text
-                            .split(',')
-                            .map((e) => e.trim())
-                            .where((e) => e.isNotEmpty)
-                            .toList();
-                        final medicalHistory = medicalHistoryController.text
-                            .split(',')
-                            .map((e) => e.trim())
-                            .where((e) => e.isNotEmpty)
-                            .toList();
-                        
-                        if (allergens.isNotEmpty || medicalHistory.isNotEmpty) {
-                          Navigator.pop(context);
-                          _saveHealthProfile(allergens, medicalHistory);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Vui lòng nhập ít nhất một mục trong dị ứng hoặc tiền sử bệnh'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFB3C6),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                      ),
-                      child: const Text(
-                        'Lưu',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _saveHealthProfile(
     List<String> allergens,
@@ -519,9 +320,10 @@ Return ONLY the JSON object, no other text.''',
     String healthGoal = '',
   }) async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
+    // Không bắt buộc phải có đầy đủ thông tin, cho phép lưu với bất kỳ thông tin nào có
     final success = await provider.saveProfileInfo(
-      allergens: allergens,
-      medicalHistory: medicalHistory,
+      allergens: allergens.isNotEmpty ? allergens : null,
+      medicalHistory: medicalHistory.isNotEmpty ? medicalHistory : null,
       name: name.isNotEmpty ? name : null,
       age: age.isNotEmpty ? age : null,
       weight: weight.isNotEmpty ? weight : null,
@@ -749,55 +551,86 @@ Return ONLY the JSON object, no other text.''',
                   ],
                 ),
                 child: SafeArea(
-                  child: Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          decoration: InputDecoration(
-                            hintText: 'Nhập câu trả lời của bạn...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
+                      if (_showCompleteButton && !_isComplete)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              _extractAndSaveHealthProfile();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFB3C6),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
                               ),
+                              elevation: 4,
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
+                            child: const Text(
+                              'Hoàn Thành',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFFB3C6),
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
                             ),
                           ),
-                          enabled: !_isLoading && !_isComplete,
-                          maxLines: null,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendMessage(),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _isLoading || _isComplete
-                              ? Colors.grey
-                              : const Color(0xFFFFB3C6),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.send, color: Colors.white),
-                          onPressed: _isLoading || _isComplete ? null : _sendMessage,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _messageController,
+                              decoration: InputDecoration(
+                                hintText: 'Nhập câu trả lời của bạn...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFFFB3C6),
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              enabled: !_isLoading && !_isComplete,
+                              maxLines: null,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => _sendMessage(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: _isLoading || _isComplete
+                                  ? Colors.grey
+                                  : const Color(0xFFFFB3C6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.send, color: Colors.white),
+                              onPressed: _isLoading || _isComplete ? null : _sendMessage,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'camera_tab.dart';
 import 'allergen_profile_provider.dart';
+import 'services/translation_service.dart';
 
 class HomeTab extends StatelessWidget {
-  const HomeTab({super.key});
+  final VoidCallback? onProfileTap;
+  
+  const HomeTab({super.key, this.onProfileTap});
 
   @override
   Widget build(BuildContext context) {
@@ -99,29 +102,19 @@ class HomeTab extends StatelessWidget {
         // Right icons
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.card_giftcard,
-                color: Color(0xFFFFD700), // Gold
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person,
-                color: Color(0xFFFFB3C6), // Pink
-                size: 24,
+            GestureDetector(
+              onTap: onProfileTap,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFFFFB3C6), // Pink
+                  size: 24,
+                ),
               ),
             ),
           ],
@@ -131,33 +124,42 @@ class HomeTab extends StatelessWidget {
   }
 
   Widget _buildSummaryCards() {
+    final translationService = TranslationService();
+    
     return Consumer<AllergenProfileProvider>(
       builder: (context, provider, child) {
         final allergiesCount = provider.allergens.length;
-        final skinType = provider.skinType.isNotEmpty ? provider.skinType : 'Chưa xác định';
+        final rawHealthGoal = provider.healthGoal.isNotEmpty ? provider.healthGoal : 'Chưa xác định';
         
-        return Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                icon: Icons.science,
-                iconColor: Colors.red,
-                label: 'DỊ ỨNG',
-                value: allergiesCount.toString(),
-                valueColor: Colors.red,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSummaryCard(
-                icon: Icons.medical_services,
-                iconColor: const Color(0xFF4ECDC4),
-                label: 'LOẠI DA',
-                value: skinType,
-                valueColor: const Color(0xFF4ECDC4),
-              ),
-            ),
-          ],
+        return FutureBuilder<String>(
+          future: translationService.translateText(rawHealthGoal),
+          builder: (context, snapshot) {
+            final healthGoal = snapshot.hasData ? snapshot.data! : rawHealthGoal;
+            
+            return Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    icon: Icons.science,
+                    iconColor: Colors.red,
+                    label: 'DỊ ỨNG',
+                    value: allergiesCount.toString(),
+                    valueColor: Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildSummaryCard(
+                    icon: Icons.flag,
+                    iconColor: const Color(0xFF4ECDC4),
+                    label: 'MỤC TIÊU SỨC KHỎE',
+                    value: healthGoal,
+                    valueColor: const Color(0xFF4ECDC4),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

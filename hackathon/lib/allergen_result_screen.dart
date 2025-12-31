@@ -657,12 +657,19 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.4),
+        color: Colors.white.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _getGradientStart().withOpacity(0.3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -870,17 +877,35 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
               children: [
                 // Header với nút đóng
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.close, color: _getTextColor()),
-                        onPressed: () => Navigator.of(context).pop(),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: Icon(Icons.close, color: _getTextColor()),
+                          onPressed: () => Navigator.of(context).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.share, color: _getTextColor()),
-                        onPressed: () => _shareResult(),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: Icon(Icons.share, color: _getTextColor()),
+                          onPressed: () => _shareResult(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
                       ),
                     ],
                   ),
@@ -889,36 +914,36 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                 // Main content
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 24),
 
                         // Animated Icon
                         _buildAnimatedIcon(),
 
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
 
                         // Main Text
                         Text(
                           _getMainText(),
                           style: TextStyle(
-                            fontSize: 36,
+                            fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: _getTextColor(),
-                            letterSpacing: 1.2,
+                            letterSpacing: 1.0,
                           ),
                           textAlign: TextAlign.center,
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
                         // Sub Text
                         Text(
                           _getSubText(),
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             color: _getTextColor().withOpacity(0.85),
                             height: 1.5,
                             fontWeight: FontWeight.w500,
@@ -926,14 +951,14 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                           textAlign: TextAlign.center,
                         ),
 
-                        const SizedBox(height: 48),
+                        const SizedBox(height: 24),
 
                         // Ingredients List
                         if (widget.ingredients.isNotEmpty) ...[
                           _buildIngredientsList(),
                         ],
 
-                        const SizedBox(height: 48),
+                        const SizedBox(height: 24),
 
                         // Action Buttons
                         SizedBox(
@@ -945,21 +970,22 @@ class _AllergenResultScreenState extends State<AllergenResultScreen>
                               foregroundColor: _getTextColor(),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               elevation: 4,
+                              shadowColor: Colors.black.withOpacity(0.1),
                             ),
                             child: const Text(
                               'Quét lại',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),

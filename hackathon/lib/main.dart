@@ -53,7 +53,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _tabs = [
-      const HomeTab(),
+      HomeTab(
+        onProfileTap: () {
+          setState(() {
+            _currentIndex = 3;
+          });
+        },
+      ),
       const CameraTab(),
       const HistoryTab(),
       const ProfileTab(),
@@ -112,29 +118,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF0F5),
       body: _tabs[_currentIndex],
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-              spreadRadius: 0,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BottomNavigationBar(
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BottomNavigationBar(
             currentIndex: _currentIndex,
             onTap: (index) {
               setState(() {
@@ -148,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             unselectedItemColor: Colors.grey.shade400,
             selectedFontSize: 12,
             unselectedFontSize: 12,
+            iconSize: 24,
             selectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -156,10 +164,12 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.w500,
               letterSpacing: 0.5,
             ),
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
             items: [
               BottomNavigationBarItem(
                 icon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _currentIndex == 0 
                         ? const Color(0xFFFFB3C6).withOpacity(0.15)
@@ -168,25 +178,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Icon(
                     Icons.home_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 activeIcon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFB3C6).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.home_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 label: 'HOME',
               ),
               BottomNavigationBarItem(
                 icon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _currentIndex == 1 
                         ? const Color(0xFFFFB3C6).withOpacity(0.15)
@@ -195,25 +205,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Icon(
                     Icons.camera_alt_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 activeIcon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFB3C6).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.camera_alt_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 label: 'CAMERA',
               ),
               BottomNavigationBarItem(
                 icon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _currentIndex == 2 
                         ? const Color(0xFFFFB3C6).withOpacity(0.15)
@@ -222,25 +232,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Icon(
                     Icons.history_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 activeIcon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFB3C6).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.history_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 label: 'HISTORY',
               ),
               BottomNavigationBarItem(
                 icon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _currentIndex == 3 
                         ? const Color(0xFFFFB3C6).withOpacity(0.15)
@@ -249,23 +259,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   child: Icon(
                     Icons.person_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 activeIcon: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFB3C6).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.person_rounded,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
                 label: 'PROFILE',
               ),
             ],
+            ),
           ),
         ),
       ),

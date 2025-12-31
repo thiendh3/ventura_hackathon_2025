@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import 'allergen_profile_provider.dart';
-import 'allergen_chatbot_screen.dart';
 import 'services/translation_service.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -20,31 +18,62 @@ class _ProfileTabState extends State<ProfileTab> {
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _skinTypeController = TextEditingController();
   final TextEditingController _healthGoalController = TextEditingController();
+  final TextEditingController _allergensController = TextEditingController();
+  final TextEditingController _medicalHistoryController = TextEditingController();
   bool _isEditing = false;
+  final TranslationService _translationService = TranslationService();
 
   @override
   void initState() {
     super.initState();
-    _loadProfileData();
+    _loadProfileData().then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
-  void _loadProfileData() {
+  Future<void> _loadProfileData() async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
     _nameController.text = provider.name;
     _ageController.text = provider.age;
     _weightController.text = provider.weight;
-    _skinTypeController.text = provider.skinType;
-    _healthGoalController.text = provider.healthGoal;
+    
+    // Translate skin type, health goal, allergens, and medical history to Vietnamese
+    _skinTypeController.text = await _translationService.translateText(provider.skinType);
+    _healthGoalController.text = await _translationService.translateText(provider.healthGoal);
+    
+    final translatedAllergens = await _translationService.translateList(provider.allergens);
+    _allergensController.text = translatedAllergens.join(', ');
+    
+    final translatedMedicalHistory = await _translationService.translateList(provider.medicalHistory);
+    _medicalHistoryController.text = translatedMedicalHistory.join(', ');
   }
 
   Future<void> _saveProfile() async {
     final provider = Provider.of<AllergenProfileProvider>(context, listen: false);
+    
+    // Parse allergens and medical history from comma-separated strings
+    final allergens = _allergensController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
+    final medicalHistory = _medicalHistoryController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
     final success = await provider.saveProfileInfo(
       name: _nameController.text.trim(),
       age: _ageController.text.trim(),
       weight: _weightController.text.trim(),
       skinType: _skinTypeController.text.trim(),
       healthGoal: _healthGoalController.text.trim(),
+      allergens: allergens,
+      medicalHistory: medicalHistory,
     );
     
     if (success && mounted) {
@@ -68,6 +97,8 @@ class _ProfileTabState extends State<ProfileTab> {
     _weightController.dispose();
     _skinTypeController.dispose();
     _healthGoalController.dispose();
+    _allergensController.dispose();
+    _medicalHistoryController.dispose();
     super.dispose();
   }
 
@@ -130,19 +161,6 @@ class _ProfileTabState extends State<ProfileTab> {
         // Right icons
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.card_giftcard,
-                color: Color(0xFFFFD700),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -390,7 +408,7 @@ class _ProfileTabState extends State<ProfileTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'BASIC INFO',
+                'THÔNG TIN CƠ BẢN',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -487,7 +505,7 @@ class _ProfileTabState extends State<ProfileTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'SKIN TYPE',
+                'LOẠI DA',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -539,7 +557,7 @@ class _ProfileTabState extends State<ProfileTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'HEALTH GOAL',
+                'MỤC TIÊU SỨC KHỎE',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -567,6 +585,112 @@ class _ProfileTabState extends State<ProfileTab> {
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey.shade600),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Allergens Card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'DỊ ỨNG',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFFFB3C6),
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _allergensController,
+                  enabled: _isEditing,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: _allergensController.text.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                    color: _allergensController.text.isEmpty ? Colors.grey.shade600 : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Ví dụ: đậu phộng, sữa, trứng (phân cách bằng dấu phẩy)',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  maxLines: 2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Medical History Card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'TIỀN SỬ BỆNH',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFFFB3C6),
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _medicalHistoryController,
+                  enabled: _isEditing,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: _medicalHistoryController.text.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                    color: _medicalHistoryController.text.isEmpty ? Colors.grey.shade600 : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Ví dụ: tiểu đường, cao huyết áp (phân cách bằng dấu phẩy)',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  maxLines: 2,
                 ),
               ),
             ],
