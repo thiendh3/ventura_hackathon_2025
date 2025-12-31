@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'services/device_id_service.dart';
+import 'history_detail_screen.dart';
 
 // Model class for health warning
 class HealthWarning {
@@ -10,20 +11,34 @@ class HealthWarning {
   final String summary;
   final String warningType;
   final double riskScore;
+  final List<String> potentialEffects;
+  final String scientificExplanation;
+  final String recommendation;
 
   HealthWarning({
     required this.ingredient,
     required this.summary,
     required this.warningType,
     required this.riskScore,
+    required this.potentialEffects,
+    required this.scientificExplanation,
+    required this.recommendation,
   });
 
   factory HealthWarning.fromJson(Map<String, dynamic> json) {
+    final effectsList = (json['potential_effects'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+
     return HealthWarning(
       ingredient: json['ingredient'] ?? '',
       summary: json['summary'] ?? '',
       warningType: json['warning_type'] ?? '',
       riskScore: (json['risk_score'] ?? 0).toDouble(),
+      potentialEffects: effectsList,
+      scientificExplanation: json['scientific_explanation'] ?? '',
+      recommendation: json['recommendation'] ?? '',
     );
   }
 }
@@ -35,6 +50,7 @@ class HistoryItem {
   final String imageUrl;
   final List<HealthWarning> healthWarnings;
   final List<String> ingredients;
+  final Map<String, dynamic> rawJson; // Store raw JSON for detail view
 
   HistoryItem({
     required this.id,
@@ -42,6 +58,7 @@ class HistoryItem {
     required this.imageUrl,
     required this.healthWarnings,
     required this.ingredients,
+    required this.rawJson,
   });
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
@@ -61,6 +78,7 @@ class HistoryItem {
       imageUrl: json['image_url'] ?? '',
       healthWarnings: warningsList,
       ingredients: ingredientsList,
+      rawJson: json, // Store the original JSON
     );
   }
 
@@ -296,20 +314,30 @@ class _HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildHistoryCard(HistoryItem item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HistoryDetailScreen(item: item),
           ),
-        ],
-      ),
-      child: Padding(
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -446,6 +474,7 @@ class _HistoryTabState extends State<HistoryTab> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
