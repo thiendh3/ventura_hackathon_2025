@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'services/device_id_service.dart';
 
 // Model class for health warning
 class HealthWarning {
@@ -114,9 +115,6 @@ class _HistoryTabState extends State<HistoryTab> {
   String? _errorMessage;
   List<HistoryItem> _historyItems = [];
 
-  // Mock device_id for testing
-  static const String _mockDeviceId = 'user123_device456';
-
   @override
   void initState() {
     super.initState();
@@ -130,8 +128,7 @@ class _HistoryTabState extends State<HistoryTab> {
     });
 
     try {
-      // TODO: Replace with DeviceIdService().getDeviceId() after testing
-      final deviceId = _mockDeviceId;
+      final deviceId = await DeviceIdService().getDeviceId();
 
       final url = Uri.parse(
         'https://asia-southeast1-hackathon-2026-482104.cloudfunctions.net/get_history?device_id=$deviceId',
